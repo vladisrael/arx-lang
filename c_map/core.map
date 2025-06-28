@@ -1,0 +1,6 @@
+[meta]
+type = c_lib
+name = core
+file = core.c
+[functions]
+string_concat = core_string_concat:str,str;>str

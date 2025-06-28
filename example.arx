@@ -1,0 +1,7 @@
+using io
+
+int _exec() {
+    string x = io.input('> ')
+    io.print('Hello ' + x + ', from ARX')
+    return 0
+}
