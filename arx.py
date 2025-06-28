@@ -28,18 +28,20 @@ def build(file_in:str) -> None:
 
     lexer : ArtemisLexer = ArtemisLexer()
     parser : ArtemisParser = ArtemisParser()
-    compiler : ArtemisCompiler = ArtemisCompiler(compiler_data)
 
     tokens : list = list(lexer.tokenize(file_contents))
-    ast = parser.parse(iter(tokens))
+    ast : tuple = parser.parse(iter(tokens))
 
     if not ast:
         raise RuntimeError('Parsing failed')
     
     debug_print(ast)
 
-    using_modules = ast[1]
-    functions = ast[2]
+    using_modules : tuple = [u[1] for u in ast[1][0]]
+    functions : tuple = ast[2]
+
+    compiler : ArtemisCompiler = ArtemisCompiler(compiler_data)
+    compiler.load_extern_modules(using_modules)
 
     for fn in functions:
         if fn[0] == 'function':

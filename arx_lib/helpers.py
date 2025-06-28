@@ -21,4 +21,4 @@ class ArtemisParserLogger(object):
 
 def debug_print(*values:object) -> None:
     if '--debug' in sys.argv:
-        print(values)
+        print(*values)

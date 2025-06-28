@@ -7,28 +7,36 @@ int32 = ir.IntType(32)
 void = ir.VoidType()
 
 class ArtemisCompiler:
-    def __init__(self, compiler_data:ArtemisData):
+    def __init__(self, compiler_data:ArtemisData) -> None:
         self.module : ir.Module = ir.Module(name="arx")
         self.module.triple = binding.get_default_triple()
         self.builder = None
         self.func = None
+
+        self.compiler_data : ArtemisData = compiler_data
 
         self.variables = {}
         self.extern_c : List[str] = []
         self.extern_functions : Dict[str, str] = {}
         self.type_string : ir.Type = ir.IntType(8).as_pointer()
 
-        for path in compiler_data.map_paths:
+    def load_extern_modules(self, using_modules: List[str]) -> None:
+        for path in self.compiler_data.map_paths:
             maps : str = glob.glob(os.path.join(path, '*.map'))
             for map_file in maps:
                 cfg : configparser.ConfigParser = configparser.ConfigParser()
                 cfg.read(map_file)
-                self.extern_c.append(
-                    cfg['meta']['name']
-                )
+                module_name : str = cfg['meta']['name']
+                if module_name not in using_modules:
+                    match module_name:
+                        case 'core':
+                            continue
+                        case _default:
+                            pass
+                self.extern_c.append(module_name)
 
                 for arx_name, c_name in cfg['functions'].items():
-                    self.extern_functions[f"{cfg['meta']['name']}.{arx_name}"] = c_name
+                    self.extern_functions[f"{module_name}.{arx_name}"] = c_name
 
     def compile_function(self, name, statements):
         func_ty = ir.FunctionType(int32, [])
