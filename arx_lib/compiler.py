@@ -1,38 +1,41 @@
 from llvmlite import ir, binding
-import configparser, glob, shutil, os, sys, re
+import configparser
+import glob
+import shutil
+import os
+import sys
+import re
 from .data_classes import ArtemisData
 from typing import List, Tuple, Set, Dict, Optional
 
 int32 = ir.IntType(32)
 void = ir.VoidType()
 
+
 class ArtemisCompiler:
-    def __init__(self, compiler_data:ArtemisData) -> None:
-        self.module : ir.Module = ir.Module(name="arx")
+    def __init__(self, compiler_data: ArtemisData) -> None:
+        self.module: ir.Module = ir.Module(name="arx")
         self.module.triple = binding.get_default_triple()
         self.builder = None
         self.func = None
 
-        self.compiler_data : ArtemisData = compiler_data
+        self.compiler_data: ArtemisData = compiler_data
 
         self.variables = {}
-        self.extern_c : List[str] = []
-        self.extern_functions : Dict[str, str] = {}
-        self.type_string : ir.Type = ir.IntType(8).as_pointer()
+        self.extern_c: List[str] = []
+        self.extern_functions: Dict[str, str] = {}
+        self.type_string: ir.Type = ir.IntType(8).as_pointer()
 
     def load_extern_modules(self, using_modules: List[str]) -> None:
         for path in self.compiler_data.map_paths:
-            maps : str = glob.glob(os.path.join(path, '*.map'))
+            maps: str = glob.glob(os.path.join(path, '*.map'))
             for map_file in maps:
-                cfg : configparser.ConfigParser = configparser.ConfigParser()
+                cfg: configparser.ConfigParser = configparser.ConfigParser()
                 cfg.read(map_file)
-                module_name : str = cfg['meta']['name']
-                if module_name not in using_modules:
-                    match module_name:
-                        case 'core':
-                            continue
-                        case _default:
-                            pass
+                module_name: str = cfg['meta']['name']
+                if module_name != 'core':
+                    if module_name not in using_modules:
+                        continue
                 self.extern_c.append(module_name)
 
                 for arx_name, c_name in cfg['functions'].items():
@@ -83,26 +86,31 @@ class ArtemisCompiler:
 
         if kind == 'call_method':
             obj, method, args = expr[1], expr[2], expr[3]
-            full_name : str = obj + '.' + method
+            full_name: str = obj + '.' + method
             if full_name not in self.extern_functions:
-                raise NameError(f'Function {full_name} not found in extern functions')
+                raise NameError(
+                    f'Function {full_name} not found in extern functions')
 
-            llvm_data : str = self.extern_functions[full_name]
+            llvm_data: str = self.extern_functions[full_name]
 
             # Compile arguments
             arg_vals = [self.compile_expr(arg) for arg in args]
             arg_types = [arg.type for arg in arg_vals]
             llvm_name, return_type_id = llvm_data.split('>')
             if llvm_data.startswith('*'):
-                result : Optional[re.Match] = re.search(rf'([a-zA-Z_][a-zA-Z0-9_]*)\:{','.join([ir_to_string(arg) for arg in arg_types])};', llvm_data)
+                result: Optional[re.Match] = re.search(
+                    rf'([a-zA-Z_][a-zA-Z0-9_]*)\:{','.join([ir_to_string(arg) for arg in arg_types])};', llvm_data)
                 if not result:
-                    raise TypeError(f'Function {full_name} not does not have ({' '.join([ir_to_string(arg) for arg in arg_types])}) arguments type match')
+                    raise TypeError(f'Function {full_name} not does not have ({' '.join(
+                        [ir_to_string(arg) for arg in arg_types])}) arguments type match')
                 llvm_name = result.group(1)
             elif ':' in llvm_data:
-                result : Optional[re.Match] = re.search(rf'([a-zA-Z_][a-zA-Z0-9_]*)\:{','.join([ir_to_string(arg) for arg in arg_types])};', llvm_data)
+                result: Optional[re.Match] = re.search(
+                    rf'([a-zA-Z_][a-zA-Z0-9_]*)\:{','.join([ir_to_string(arg) for arg in arg_types])};', llvm_data)
                 if not result:
-                    raise TypeError(f'Function {full_name} not does not have ({' '.join([ir_to_string(arg) for arg in arg_types])}) arguments type match')
-            return_type : ir.Type = ir.VoidType()
+                    raise TypeError(f'Function {full_name} not does not have ({' '.join(
+                        [ir_to_string(arg) for arg in arg_types])}) arguments type match')
+            return_type: ir.Type = ir.VoidType()
             match return_type_id:
                 case 'str':
                     return_type = self.type_string
@@ -119,16 +127,17 @@ class ArtemisCompiler:
 
         elif kind == 'int':
             return ir.Constant(int32, expr[1])
-        
+
         elif kind == 'string':
             data = bytearray(expr[1].encode("utf8") + b'\0')
             str_type = ir.ArrayType(ir.IntType(8), len(data))
-            global_str = ir.GlobalVariable(self.module, str_type, name=f"str{len(self.module.global_values)}")
+            global_str = ir.GlobalVariable(self.module, str_type, name=f"str{
+                                           len(self.module.global_values)}")
             global_str.global_constant = True
             global_str.initializer = ir.Constant(str_type, data)
             ptr = self.builder.bitcast(global_str, self.type_string)
             return ptr
-        
+
         elif kind == 'binop':
             op, left, right = expr[1], expr[2], expr[3]
             lval = self.compile_expr(left)
@@ -136,10 +145,11 @@ class ArtemisCompiler:
 
             if op == '+':
                 if lval.type == self.type_string and rval.type == self.type_string:
-                    llvm_name : str = 'core_string_concat'
+                    llvm_name: str = 'core_string_concat'
                     func = self.module.globals.get(llvm_name)
                     if not func:
-                        func = ir.Function(self.module, ir.FunctionType(self.type_string, [self.type_string, self.type_string]), name=llvm_name)
+                        func = ir.Function(self.module, ir.FunctionType(self.type_string, [
+                                           self.type_string, self.type_string]), name=llvm_name)
                     return self.builder.call(func, [lval, rval])
                 return self.builder.add(lval, rval)
             elif op == '-':
@@ -175,6 +185,7 @@ class ArtemisCompiler:
         exec_fn = self.module.get_global("_exec")
         ret_val = builder.call(exec_fn, [])
         builder.ret(ret_val)
+
 
 def ir_to_string(ir_type) -> str:
     if isinstance(ir_type, ir.IntType):

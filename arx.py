@@ -37,7 +37,8 @@ def build(file_in:str) -> None:
     
     debug_print(ast)
 
-    using_modules : tuple = [u[1] for u in ast[1][0]]
+    using_modules : tuple = [mod[1] for mod in ast[1]]
+    debug_print(using_modules)
     functions : tuple = ast[2]
 
     compiler : ArtemisCompiler = ArtemisCompiler(compiler_data)
