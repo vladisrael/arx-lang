@@ -14,7 +14,7 @@ void = ir.VoidType()
 
 class ArtemisCompiler:
     def __init__(self, compiler_data: ArtemisData) -> None:
-        self.module: ir.Module = ir.Module(name="arx")
+        self.module: ir.Module = ir.Module(name='arx')
         self.module.triple = binding.get_default_triple()
         self.builder = None
         self.func = None
@@ -39,12 +39,12 @@ class ArtemisCompiler:
                 self.extern_c.append(module_name)
 
                 for arx_name, c_name in cfg['functions'].items():
-                    self.extern_functions[f"{module_name}.{arx_name}"] = c_name
+                    self.extern_functions[f'{module_name}.{arx_name}'] = c_name
 
     def compile_function(self, name, statements):
-        func_ty = ir.FunctionType(int32, [])
-        self.func = ir.Function(self.module, func_ty, name=name)
-        block = self.func.append_basic_block("entry")
+        func_type : ir.FunctionType = ir.FunctionType(int32, [])
+        self.func = ir.Function(self.module, func_type, name=name)
+        block = self.func.append_basic_block('entry')
         self.builder = ir.IRBuilder(block)
 
         for stmt in statements:
@@ -53,39 +53,38 @@ class ArtemisCompiler:
         if self.builder.block.terminator is None:
             self.builder.ret(ir.Constant(int32, 0))
 
-    def compile_statement(self, stmt):
-        kind = stmt[0]
+    def compile_statement(self, statement):
+        kind = statement[0]
         if kind == 'expr':
-            self.compile_expr(stmt[1])
+            self.compile_expr(statement[1])
         elif kind == 'return':
-            retval = self.compile_expr(stmt[1])
-            self.builder.ret(retval)
+            return_value = self.compile_expr(statement[1])
+            self.builder.ret(return_value)
         elif kind == 'declare':
-            var_type_str, var_name, value_expr = stmt[1], stmt[2], stmt[3]
+            variable_type_str, variable_name, value_expr = statement[1], statement[2], statement[3]
             value = self.compile_expr(value_expr)
 
-            # For now, only support int
-            if var_type_str == 'int':
-                ptr = self.builder.alloca(int32, name=var_name)
+            if variable_type_str == 'int':
+                ptr = self.builder.alloca(int32, name=variable_name)
                 self.builder.store(value, ptr)
-                self.variables[var_name] = ptr
-            elif var_type_str == 'bool':
-                bool_ty = ir.IntType(1)
-                ptr = self.builder.alloca(bool_ty, name=var_name)
+                self.variables[variable_name] = ptr
+            elif variable_type_str == 'bool':
+                bool_type : ir.IntType = ir.IntType(1)
+                ptr = self.builder.alloca(bool_type, name=variable_name)
                 self.builder.store(value, ptr)
-                self.variables[var_name] = ptr
-            elif var_type_str == 'string':
-                ptr = self.builder.alloca(self.type_string, name=var_name)
+                self.variables[variable_name] = ptr
+            elif variable_type_str == 'string':
+                ptr = self.builder.alloca(self.type_string, name=variable_name)
                 self.builder.store(value, ptr)
-                self.variables[var_name] = ptr
+                self.variables[variable_name] = ptr
             else:
-                raise NotImplementedError(f'Unsupported type: {var_type_str}')
+                raise NotImplementedError(f'Unsupported type: {variable_type_str}')
 
-    def compile_expr(self, expr):
-        kind = expr[0]
+    def compile_expr(self, expresion):
+        kind = expresion[0]
 
         if kind == 'call_method':
-            obj, method, args = expr[1], expr[2], expr[3]
+            obj, method, args = expresion[1], expresion[2], expresion[3]
             full_name: str = obj + '.' + method
             if full_name not in self.extern_functions:
                 raise NameError(
@@ -97,19 +96,13 @@ class ArtemisCompiler:
             arg_vals = [self.compile_expr(arg) for arg in args]
             arg_types = [arg.type for arg in arg_vals]
             llvm_name, return_type_id = llvm_data.split('>')
-            if llvm_data.startswith('*'):
+            if llvm_data.startswith('*') or ':' in llvm_data:
                 result: Optional[re.Match] = re.search(
                     rf'([a-zA-Z_][a-zA-Z0-9_]*)\:{','.join([ir_to_string(arg) for arg in arg_types])};', llvm_data)
                 if not result:
                     raise TypeError(f'Function {full_name} not does not have ({' '.join(
                         [ir_to_string(arg) for arg in arg_types])}) arguments type match')
                 llvm_name = result.group(1)
-            elif ':' in llvm_data:
-                result: Optional[re.Match] = re.search(
-                    rf'([a-zA-Z_][a-zA-Z0-9_]*)\:{','.join([ir_to_string(arg) for arg in arg_types])};', llvm_data)
-                if not result:
-                    raise TypeError(f'Function {full_name} not does not have ({' '.join(
-                        [ir_to_string(arg) for arg in arg_types])}) arguments type match')
             return_type: ir.Type = ir.VoidType()
             match return_type_id:
                 case 'str':
@@ -119,72 +112,72 @@ class ArtemisCompiler:
                 case 'bool':
                     return_type = ir.IntType(1)
             # Check if already declared
-            func = self.module.globals.get(llvm_name)
+            func : ir.Function = self.module.globals.get(llvm_name)
             if not func:
-                func_type = ir.FunctionType(return_type, arg_types)
-                func = ir.Function(self.module, func_type, name=llvm_name)
+                func_type : ir.FunctionType = ir.FunctionType(return_type, arg_types)
+                func : ir.Function = ir.Function(self.module, func_type, name=llvm_name)
             return self.builder.call(func, arg_vals)
 
         elif kind == 'int':
-            return ir.Constant(int32, expr[1])
+            return ir.Constant(int32, expresion[1])
 
         elif kind == 'string':
-            data = bytearray(expr[1].encode("utf8") + b'\0')
-            str_type = ir.ArrayType(ir.IntType(8), len(data))
-            global_str = ir.GlobalVariable(self.module, str_type, name=f"str{
-                                           len(self.module.global_values)}")
+            data : bytearray = bytearray(expresion[1].encode('utf8') + b'\0')
+            str_type : ir.ArrayType = ir.ArrayType(ir.IntType(8), len(data))
+            global_str : ir.GlobalVariable = ir.GlobalVariable(self.module, str_type, name=f'str{
+                                           len(self.module.global_values)}')
             global_str.global_constant = True
             global_str.initializer = ir.Constant(str_type, data)
             ptr = self.builder.bitcast(global_str, self.type_string)
             return ptr
 
         elif kind == 'binop':
-            op, left, right = expr[1], expr[2], expr[3]
-            lval = self.compile_expr(left)
-            rval = self.compile_expr(right)
+            operator, left_part, right_part = expresion[1], expresion[2], expresion[3]
+            left_value = self.compile_expr(left_part)
+            right_value = self.compile_expr(right_part)
 
-            if op == '+':
-                if lval.type == self.type_string and rval.type == self.type_string:
+            if operator == '+':
+                if left_value.type == self.type_string and right_value.type == self.type_string:
                     llvm_name: str = 'core_string_concat'
                     func = self.module.globals.get(llvm_name)
                     if not func:
                         func = ir.Function(self.module, ir.FunctionType(self.type_string, [
                                            self.type_string, self.type_string]), name=llvm_name)
-                    return self.builder.call(func, [lval, rval])
-                return self.builder.add(lval, rval)
-            elif op == '-':
-                return self.builder.sub(lval, rval)
-            elif op == '*':
-                return self.builder.mul(lval, rval)
-            elif op == '/':
-                return self.builder.sdiv(lval, rval)  # signed division
+                    return self.builder.call(func, [left_value, right_value])
+                return self.builder.add(left_value, right_value)
+            elif operator == '-':
+                return self.builder.sub(left_value, right_value)
+            elif operator == '*':
+                return self.builder.mul(left_value, right_value)
+            elif operator == '/':
+                return self.builder.sdiv(left_value, right_value)  # signed division
             else:
-                raise NotImplementedError(f"Unsupported operator: {op}")
+                raise NotImplementedError(f'Unsupported operator: {operator}')
 
         elif kind == 'var':
-            var_name = expr[1]
+            var_name = expresion[1]
             if var_name not in self.variables:
-                raise NameError(f"Undefined variable: {var_name}")
+                raise NameError(f'Undefined variable: {var_name}')
             ptr = self.variables[var_name]
             return self.builder.load(ptr)
 
         elif kind == 'bool':
-            return ir.Constant(ir.IntType(1), 1 if expr[1] else 0)
+            return ir.Constant(ir.IntType(1), 1 if expresion[1] else 0)
 
         else:
-            raise NotImplementedError(f"Expr kind {kind} not implemented")
+            raise NotImplementedError(f'Expresion kind {kind} not implemented')
 
     def add_c_main(self):
         # Define: int main() { return _exec(); }
-        func_ty = ir.FunctionType(ir.IntType(32), [])
-        main_fn = ir.Function(self.module, func_ty, name="main")
-        block = main_fn.append_basic_block(name="entry")
-        builder = ir.IRBuilder(block)
+        func_type : ir.FunctionType = ir.FunctionType(ir.IntType(32), [])
+        main_fn : ir.Function = ir.Function(self.module, func_type, name='main')
+        block : ir.Block = main_fn.append_basic_block(name='entry')
+        builder : ir.IRBuilder = ir.IRBuilder(block)
 
         # Call _exec
-        exec_fn = self.module.get_global("_exec")
-        ret_val = builder.call(exec_fn, [])
-        builder.ret(ret_val)
+        exec_fn = self.module.get_global('_exec')
+        return_value = builder.call(exec_fn, [])
+        builder.ret(return_value)
 
 
 def ir_to_string(ir_type) -> str:

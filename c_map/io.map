@@ -4,5 +4,5 @@ name = io
 file = io.c
 [functions]
 print = *io_print_int:int;io_print_str:str;io_print_bool:bool;>void
-input = io_input_str>str
-input_integer = io_input_int>int
+input = io_input_str:str;>str
+input_integer = io_input_int:str;>int

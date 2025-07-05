@@ -2,6 +2,8 @@ using io
 
 int _exec() {
     string x = io.input('> ')
-    io.print('Hello ' + x + ', from ARX')
+    io.print('Hello ' + x + ', from ARX\n')
+    int y = io.input_integer('integer >')
+    io.print(y * 3)
     return 0
 }
