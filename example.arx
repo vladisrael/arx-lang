@@ -1,9 +1,12 @@
 using io
 
+int add(int a, int b) {
+    return a + b * a
+}
+
 int _exec() {
-    string x = io.input('> ')
-    io.print('Hello ' + x + ', from ARX\n')
-    int y = io.input_integer('integer >')
-    io.print(y * 3)
+    int x = io.input_integer('integer 0 >')
+    int y = io.input_integer('integer 1 >')
+    io.print(add(x, y))
     return 0
 }

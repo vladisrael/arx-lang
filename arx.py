@@ -6,7 +6,7 @@ from arx_lib.helpers import debug_print
 
 version_string : str = '[alpha]'
 
-import os, sys, subprocess, shutil
+import os, sys, subprocess, shutil, platform
 from typing import List, Tuple, Set, Dict
 
 
@@ -46,7 +46,7 @@ def build(file_in:str) -> None:
 
     for fn in functions:
         if fn[0] == 'function':
-            compiler.compile_function(fn[1], fn[2])
+            compiler.compile_function(fn[1], fn[2], fn[3])
 
     compiler.add_c_main()
 
@@ -80,6 +80,7 @@ if __name__ == '__main__':
         match sys.argv[1]:
             case 'version':
                 print(version_string)
+                print('Python', platform.python_version())
                 exit(0)
             case 'build':
                 if len(sys.argv) > 2:

@@ -16,12 +16,12 @@ class ArtemisCompiler:
     def __init__(self, compiler_data: ArtemisData) -> None:
         self.module: ir.Module = ir.Module(name='arx')
         self.module.triple = binding.get_default_triple()
-        self.builder = None
-        self.func = None
+        self.builder : Optional[ir.IRBuilder] = None
+        self.func : Optional[ir.Function] = None
 
         self.compiler_data: ArtemisData = compiler_data
 
-        self.variables = {}
+        self.variables : dict = {}
         self.extern_c: List[str] = []
         self.extern_functions: Dict[str, str] = {}
         self.type_string: ir.Type = ir.IntType(8).as_pointer()
@@ -41,14 +41,23 @@ class ArtemisCompiler:
                 for arx_name, c_name in cfg['functions'].items():
                     self.extern_functions[f'{module_name}.{arx_name}'] = c_name
 
-    def compile_function(self, name, statements):
-        func_type : ir.FunctionType = ir.FunctionType(int32, [])
-        self.func = ir.Function(self.module, func_type, name=name)
-        block = self.func.append_basic_block('entry')
-        self.builder = ir.IRBuilder(block)
+    def compile_function(self, name, parameters, statements):
+        arg_types : List[ir.Type] = [string_to_ir(parameter_type) for _id, parameter_type, _name in parameters]
+        func_type : ir.FunctionType = ir.FunctionType(int32, arg_types)
+        self.func : ir.Function = ir.Function(self.module, func_type, name=name)
+        block : ir.Block = self.func.append_basic_block('entry')
+        self.builder : ir.IRBuilder = ir.IRBuilder(block)
 
-        for stmt in statements:
-            self.compile_statement(stmt)
+        self.variables : dict = {}
+        for i, (_id, _type, name) in enumerate(parameters):
+            arg = self.func.args[i]
+            arg.name = name
+            ptr = self.builder.alloca(arg.type, name=name)
+            self.builder.store(arg, ptr)
+            self.variables[name] = ptr
+
+        for statement in statements:
+            self.compile_statement(statement)
 
         if self.builder.block.terminator is None:
             self.builder.ret(ir.Constant(int32, 0))
@@ -80,11 +89,25 @@ class ArtemisCompiler:
             else:
                 raise NotImplementedError(f'Unsupported type: {variable_type_str}')
 
-    def compile_expr(self, expresion):
-        kind = expresion[0]
+    def compile_expr(self, expression):
+        kind = expression[0]
 
-        if kind == 'call_method':
-            obj, method, args = expresion[1], expresion[2], expresion[3]
+        if kind == 'call':
+            name : str = expression[1]
+            args = expression[2]
+
+            arg_values = [self.compile_expr(arg) for arg in args]
+            arg_types = [value.type for value in arg_values]
+
+            func : ir.Function = self.module.globals.get(name)
+            if not func:
+                func_type : ir.FunctionType = ir.FunctionType(int32, arg_values)
+                func : ir.Function = ir.Function(self.module, func_type, name=name)
+
+            return self.builder.call(func, arg_values)
+        
+        elif kind == 'call_method':
+            obj, method, args = expression[1], expression[2], expression[3]
             full_name: str = obj + '.' + method
             if full_name not in self.extern_functions:
                 raise NameError(
@@ -119,10 +142,10 @@ class ArtemisCompiler:
             return self.builder.call(func, arg_vals)
 
         elif kind == 'int':
-            return ir.Constant(int32, expresion[1])
+            return ir.Constant(int32, expression[1])
 
         elif kind == 'string':
-            data : bytearray = bytearray(expresion[1].encode('utf8') + b'\0')
+            data : bytearray = bytearray(expression[1].encode('utf8') + b'\0')
             str_type : ir.ArrayType = ir.ArrayType(ir.IntType(8), len(data))
             global_str : ir.GlobalVariable = ir.GlobalVariable(self.module, str_type, name=f'str{
                                            len(self.module.global_values)}')
@@ -132,7 +155,7 @@ class ArtemisCompiler:
             return ptr
 
         elif kind == 'binop':
-            operator, left_part, right_part = expresion[1], expresion[2], expresion[3]
+            operator, left_part, right_part = expression[1], expression[2], expression[3]
             left_value = self.compile_expr(left_part)
             right_value = self.compile_expr(right_part)
 
@@ -155,14 +178,14 @@ class ArtemisCompiler:
                 raise NotImplementedError(f'Unsupported operator: {operator}')
 
         elif kind == 'var':
-            var_name = expresion[1]
+            var_name = expression[1]
             if var_name not in self.variables:
                 raise NameError(f'Undefined variable: {var_name}')
             ptr = self.variables[var_name]
             return self.builder.load(ptr)
 
         elif kind == 'bool':
-            return ir.Constant(ir.IntType(1), 1 if expresion[1] else 0)
+            return ir.Constant(ir.IntType(1), 1 if expression[1] else 0)
 
         else:
             raise NotImplementedError(f'Expresion kind {kind} not implemented')
@@ -179,8 +202,19 @@ class ArtemisCompiler:
         return_value = builder.call(exec_fn, [])
         builder.ret(return_value)
 
+def string_to_ir(string_type: str) -> ir.Type:
+    match string_type:
+        case 'int':
+            return ir.IntType(32)
+        case 'bool':
+            return ir.IntType(1)
+        case 'str':
+            return ir.IntType(8).as_pointer()
+        case _:
+            pass
+    return 'NULL'
 
-def ir_to_string(ir_type) -> str:
+def ir_to_string(ir_type: ir.Type) -> str:
     if isinstance(ir_type, ir.IntType):
         if ir_type.width == 1:
             return 'bool'

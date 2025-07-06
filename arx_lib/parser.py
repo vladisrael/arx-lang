@@ -41,10 +41,35 @@ class ArtemisParser(Parser):
     @_('function')
     def function_list(self, p):
         return [p.function]
-
+    
     @_('INT ID LPAREN RPAREN LBRACE statements RBRACE')
     def function(self, p):
-        return ('function', p.ID, p.statements)
+        return ('function', p.ID, [], p.statements, 'int')
+    
+    @_('INT ID LPAREN param_list RPAREN LBRACE statements RBRACE')
+    def function(self, p):
+        return ('function', p.ID, p.param_list, p.statements, 'int')
+    
+    # ----- PARAMETERS -----
+    @_('param COMMA param_list')
+    def param_list(self, p):
+        return [p.param] + p.param_list
+
+    @_('param')
+    def param_list(self, p):
+        return [p.param]
+
+    @_('INT ID')
+    def param(self, p):
+        return ('param', 'int', p.ID)
+
+    @_('STRING ID')
+    def param(self, p):
+        return ('param', 'str', p.ID)
+
+    @_('BOOL ID')
+    def param(self, p):
+        return ('param', 'bool', p.ID)
 
     # ----- STATEMENTS -----
     @_('statements statement')
