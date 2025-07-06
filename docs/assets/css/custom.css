@@ -1,7 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu+Condensed&display=swap');
+
 body, h1, h2, h3, h4, h5, h6, pre {
-  font-family: 'Ubuntu Condensed';
+  font-family: 'Ubuntu Condensed', sans-serif;
 }
 
 code {
-  font-family: 'JetBrains Mono Thin'
+  font-family: 'JetBrains Mono Thin', monospace;
 }
