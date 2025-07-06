@@ -1,12 +1,12 @@
 using io
 
-int add(int a, int b) {
-    return a + b * a
-}
-
 int _exec() {
-    int x = io.input_integer('integer 0 >')
-    int y = io.input_integer('integer 1 >')
-    io.print(add(x, y))
+    int x = io.input_integer('Peso en KG >')
+    if (x > 100) {
+        io.print('Rango burger')
+        return 1
+    }
+    
+    io.print('Rango comun')
     return 0
 }

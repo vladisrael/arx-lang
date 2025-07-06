@@ -80,39 +80,81 @@ class ArtemisParser(Parser):
     def statements(self, p):
         return []
 
-    @_('expr')
+    @_('expression')
     def statement(self, p):
-        return ('expr', p.expr)
+        return ('expression', p.expression)
 
-    @_('RETURN expr')
+    @_('RETURN expression')
     def statement(self, p):
-        return ('return', p.expr)
+        return ('return', p.expression)
+    
+    # -- IF / ELSE IF / ELSE CHAIN --
 
+    @_('IF LPAREN expression RPAREN LBRACE statements RBRACE elseif_chain')
+    def statement(self, p):
+        return ('if_chain', [(p.expression, p.statements)] + p.elseif_chain)
+
+    @_('ELSE IF LPAREN expression RPAREN LBRACE statements RBRACE elseif_chain')
+    def elseif_chain(self, p):
+        return [(p.expression, p.statements)] + p.elseif_chain
+
+    @_('ELSE LBRACE statements RBRACE')
+    def elseif_chain(self, p):
+        return [(None, p.statements)]
+
+    @_('')
+    def elseif_chain(self, p):
+        return []
+    
     # ----- OPS -----
-    @_('expr PLUS expr')
-    def expr(self, p):
-        return ('binop', '+', p.expr0, p.expr1)
+    @_('expression PLUS expression')
+    def expression(self, p):
+        return ('binop', '+', p.expression0, p.expression1)
 
-    @_('expr MINUS expr')
-    def expr(self, p):
-        return ('binop', '-', p.expr0, p.expr1)
+    @_('expression MINUS expression')
+    def expression(self, p):
+        return ('binop', '-', p.expression0, p.expression1)
 
-    @_('expr TIMES expr')
-    def expr(self, p):
-        return ('binop', '*', p.expr0, p.expr1)
+    @_('expression TIMES expression')
+    def expression(self, p):
+        return ('binop', '*', p.expression0, p.expression1)
 
-    @_('expr DIVIDE expr')
-    def expr(self, p):
-        return ('binop', '/', p.expr0, p.expr1)
+    @_('expression DIVIDE expression')
+    def expression(self, p):
+        return ('binop', '/', p.expression0, p.expression1)
+    
+    @_('expression EQEQ expression')
+    def expression(self, p):
+        return ('binop', '==', p.expression0, p.expression1)
+    
+    @_('expression NOTEQ expression')
+    def expression(self, p):
+        return ('binop', '!=', p.expression0, p.expression1)
+    
+    @_('expression LTEQ expression')
+    def expression(self, p):
+        return ('binop', '<=', p.expression0, p.expression1)
+    
+    @_('expression GTEQ expression')
+    def expression(self, p):
+        return ('binop', '>=', p.expression0, p.expression1)
+    
+    @_('expression GT expression')
+    def expression(self, p):
+        return ('binop', '>', p.expression0, p.expression1)
+    
+    @_('expression LT expression')
+    def expression(self, p):
+        return ('binop', '<', p.expression0, p.expression1)
 
 
     # ----- EXPRESSIONS -----
-    @_('type ID ASSIGN expr')
+    @_('type ID ASSIGN expression')
     def statement(self, p):
-        return ('declare', p.type, p.ID, p.expr)
+        return ('declare', p.type, p.ID, p.expression)
 
     @_('function_call')
-    def expr(self, p):
+    def expression(self, p):
         return p.function_call
 
     @_('ID DOT ID LPAREN args RPAREN')
@@ -124,19 +166,19 @@ class ArtemisParser(Parser):
         return ('call', p.ID, p.args)
 
     @_('STRING')
-    def expr(self, p):
+    def expression(self, p):
         return ('string', p.STRING)
 
     @_('NUMBER')
-    def expr(self, p):
+    def expression(self, p):
         return ('int', p.NUMBER)
     
     @_('TRUE')
-    def expr(self, p):
+    def expression(self, p):
         return ('bool', True)
 
     @_('FALSE')
-    def expr(self, p):
+    def expression(self, p):
         return ('bool', False)
     
     # ----- TYPES -----
@@ -161,14 +203,14 @@ class ArtemisParser(Parser):
     def args(self, p):
         return []
 
-    @_('expr')
+    @_('expression')
     def args(self, p):
-        return [p.expr]
+        return [p.expression]
 
-    @_('args COMMA expr')
+    @_('args COMMA expression')
     def args(self, p):
-        return p.args + [p.expr]
+        return p.args + [p.expression]
     
     @_('ID')
-    def expr(self, p):
+    def expression(self, p):
         return ('var', p.ID)

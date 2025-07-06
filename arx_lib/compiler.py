@@ -60,14 +60,14 @@ class ArtemisCompiler:
 
     def compile_statement(self, statement):
         kind = statement[0]
-        if kind == 'expr':
-            self.compile_expr(statement[1])
+        if kind == 'expression':
+            self.compile_expression(statement[1])
         elif kind == 'return':
-            return_value = self.compile_expr(statement[1])
+            return_value = self.compile_expression(statement[1])
             self.builder.ret(return_value)
         elif kind == 'declare':
             variable_type_str, variable_name, value_expr = statement[1], statement[2], statement[3]
-            value = self.compile_expr(value_expr)
+            value = self.compile_expression(value_expr)
 
             if variable_type_str == 'int':
                 ptr = self.builder.alloca(TypeEnum.int32, name=variable_name)
@@ -84,15 +84,44 @@ class ArtemisCompiler:
                 self.variables[variable_name] = ptr
             else:
                 raise NotImplementedError(f'Unsupported type: {variable_type_str}')
+        elif statement[0] == 'if_chain':
+            branches = statement[1]
+            end_block : ir.Block = self.func.append_basic_block('if_end')
+            has_fallthrough : bool = False
 
-    def compile_expr(self, expression):
+            for i, (condition_expression, statements) in enumerate(branches):
+                then_block : ir.Block = self.func.append_basic_block(f'if_then_{i}')
+                next_block : ir.Block = self.func.append_basic_block(f'if_next_{i}') if i < len(branches) - 1 else end_block
+
+                if condition_expression is not None:
+                    cond_val = self.compile_expression(condition_expression)
+                    self.builder.cbranch(cond_val, then_block, next_block)
+                else:
+                    self.builder.branch(then_block)
+
+                self.builder.position_at_start(then_block)
+
+                for statement in statements:
+                    self.compile_statement(statement)
+
+                if self.builder.block.terminator is None:
+                    self.builder.branch(end_block)
+                    has_fallthrough = True
+
+                if condition_expression is not None:
+                    self.builder.position_at_start(next_block)
+
+            if has_fallthrough and not end_block.is_terminated:
+                self.builder.position_at_start(end_block)
+
+    def compile_expression(self, expression):
         kind = expression[0]
 
         if kind == 'call':
             name : str = expression[1]
             args = expression[2]
 
-            arg_values = [self.compile_expr(arg) for arg in args]
+            arg_values = [self.compile_expression(arg) for arg in args]
             arg_types = [value.type for value in arg_values]
 
             func : ir.Function = self.module.globals.get(name)
@@ -112,7 +141,7 @@ class ArtemisCompiler:
             llvm_data: str = self.extern_functions[full_name]
 
             # Compile arguments
-            arg_vals = [self.compile_expr(arg) for arg in args]
+            arg_vals = [self.compile_expression(arg) for arg in args]
             arg_types = [arg.type for arg in arg_vals]
             llvm_name, return_type_id = llvm_data.split('>')
             if llvm_data.startswith('*') or ':' in llvm_data:
@@ -152,26 +181,39 @@ class ArtemisCompiler:
 
         elif kind == 'binop':
             operator, left_part, right_part = expression[1], expression[2], expression[3]
-            left_value = self.compile_expr(left_part)
-            right_value = self.compile_expr(right_part)
+            left_value = self.compile_expression(left_part)
+            right_value = self.compile_expression(right_part)
 
-            if operator == '+':
-                if left_value.type == TypeEnum.string and right_value.type == TypeEnum.string:
-                    llvm_name: str = 'core_string_concat'
-                    func = self.module.globals.get(llvm_name)
-                    if not func:
-                        func = ir.Function(self.module, ir.FunctionType(TypeEnum.string, [
-                                           TypeEnum.string, TypeEnum.string]), name=llvm_name)
-                    return self.builder.call(func, [left_value, right_value])
-                return self.builder.add(left_value, right_value)
-            elif operator == '-':
-                return self.builder.sub(left_value, right_value)
-            elif operator == '*':
-                return self.builder.mul(left_value, right_value)
-            elif operator == '/':
-                return self.builder.sdiv(left_value, right_value)  # signed division
-            else:
-                raise NotImplementedError(f'Unsupported operator: {operator}')
+            match operator:
+                case '==':
+                    return self.builder.icmp_signed('==', left_value, right_value)
+                case '!=':
+                    return self.builder.icmp_signed('!=', left_value, right_value)
+                case '<=':
+                    return self.builder.icmp_signed('<=', left_value, right_value)
+                case '>=':
+                    return self.builder.icmp_signed('>=', left_value, right_value)
+                case '<':
+                    return self.builder.icmp_signed('<', left_value, right_value)
+                case '>':
+                    return self.builder.icmp_signed('>', left_value, right_value)
+                case '+':
+                    if left_value.type == TypeEnum.string and right_value.type == TypeEnum.string:
+                        llvm_name: str = 'core_string_concat'
+                        func = self.module.globals.get(llvm_name)
+                        if not func:
+                            func = ir.Function(self.module, ir.FunctionType(TypeEnum.string, [
+                                            TypeEnum.string, TypeEnum.string]), name=llvm_name)
+                        return self.builder.call(func, [left_value, right_value])
+                    return self.builder.add(left_value, right_value)
+                case '-':
+                    return self.builder.sub(left_value, right_value)
+                case '*':
+                    return self.builder.mul(left_value, right_value)
+                case '/':
+                    return self.builder.sdiv(left_value, right_value)  # signed division
+                case _:
+                    raise NotImplementedError(f'Unsupported operator: {operator}')
 
         elif kind == 'var':
             var_name = expression[1]

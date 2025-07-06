@@ -7,9 +7,9 @@ class ArtemisLexer(Lexer):
         INT, FLOAT, LIST, STR, ANY, VOID, CLASS, SELF, BOOL,
         TRUE, FALSE,
         ID, NUMBER, FLOATNUM, STRING,
-        EQEQ, NOTEQ, LTEQ, GTEQ,
+        EQEQ, NOTEQ, LTEQ, GTEQ, LT, GT,
         PLUS, MINUS, TIMES, DIVIDE,
-        ASSIGN, COLON, COMMA,
+        ASSIGN, COLON, COMMA, IF, ELSE,
         LBRACE, RBRACE, LPAREN, RPAREN, LBRACKET, RBRACKET, DOT, RETURN,
     }
 
@@ -40,12 +40,16 @@ class ArtemisLexer(Lexer):
     FALSE = r'false'
     RETURN = r'return'
     BOOL = r'bool'
+    IF = r'if'
+    ELSE = r'else'
 
     # Operators and punctuation
     EQEQ = r'=='
     NOTEQ = r'!='
     LTEQ = r'<='
     GTEQ = r'>='
+    LT   = r'<'
+    GT   = r'>'
     PLUS = r'\+'
     MINUS = r'-'
     TIMES = r'\*'
