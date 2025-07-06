@@ -1,5 +1,5 @@
 <p>
-  <img width="240pt" src="../arx-path.svg">
+  <img width="240pt" src="./arx.svg">
 </p>
 
 # Artemis (ARX)
