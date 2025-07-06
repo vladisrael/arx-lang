@@ -5,11 +5,8 @@ import shutil
 import os
 import sys
 import re
-from .data_classes import ArtemisData
+from .data_classes import ArtemisData, TypeEnum
 from typing import List, Tuple, Set, Dict, Optional
-
-int32 = ir.IntType(32)
-void = ir.VoidType()
 
 
 class ArtemisCompiler:
@@ -24,7 +21,6 @@ class ArtemisCompiler:
         self.variables : dict = {}
         self.extern_c: List[str] = []
         self.extern_functions: Dict[str, str] = {}
-        self.type_string: ir.Type = ir.IntType(8).as_pointer()
 
     def load_extern_modules(self, using_modules: List[str]) -> None:
         for path in self.compiler_data.map_paths:
@@ -43,7 +39,7 @@ class ArtemisCompiler:
 
     def compile_function(self, name, parameters, statements):
         arg_types : List[ir.Type] = [string_to_ir(parameter_type) for _id, parameter_type, _name in parameters]
-        func_type : ir.FunctionType = ir.FunctionType(int32, arg_types)
+        func_type : ir.FunctionType = ir.FunctionType(TypeEnum.int32, arg_types)
         self.func : ir.Function = ir.Function(self.module, func_type, name=name)
         block : ir.Block = self.func.append_basic_block('entry')
         self.builder : ir.IRBuilder = ir.IRBuilder(block)
@@ -60,7 +56,7 @@ class ArtemisCompiler:
             self.compile_statement(statement)
 
         if self.builder.block.terminator is None:
-            self.builder.ret(ir.Constant(int32, 0))
+            self.builder.ret(ir.Constant(TypeEnum.int32, 0))
 
     def compile_statement(self, statement):
         kind = statement[0]
@@ -74,7 +70,7 @@ class ArtemisCompiler:
             value = self.compile_expr(value_expr)
 
             if variable_type_str == 'int':
-                ptr = self.builder.alloca(int32, name=variable_name)
+                ptr = self.builder.alloca(TypeEnum.int32, name=variable_name)
                 self.builder.store(value, ptr)
                 self.variables[variable_name] = ptr
             elif variable_type_str == 'bool':
@@ -83,7 +79,7 @@ class ArtemisCompiler:
                 self.builder.store(value, ptr)
                 self.variables[variable_name] = ptr
             elif variable_type_str == 'string':
-                ptr = self.builder.alloca(self.type_string, name=variable_name)
+                ptr = self.builder.alloca(TypeEnum.string, name=variable_name)
                 self.builder.store(value, ptr)
                 self.variables[variable_name] = ptr
             else:
@@ -129,11 +125,11 @@ class ArtemisCompiler:
             return_type: ir.Type = ir.VoidType()
             match return_type_id:
                 case 'str':
-                    return_type = self.type_string
+                    return_type = TypeEnum.string
                 case 'int':
-                    return_type = ir.IntType(32)
+                    return_type = TypeEnum.int32
                 case 'bool':
-                    return_type = ir.IntType(1)
+                    return_type = TypeEnum.boolean
             # Check if already declared
             func : ir.Function = self.module.globals.get(llvm_name)
             if not func:
@@ -142,7 +138,7 @@ class ArtemisCompiler:
             return self.builder.call(func, arg_vals)
 
         elif kind == 'int':
-            return ir.Constant(int32, expression[1])
+            return ir.Constant(TypeEnum.int32, expression[1])
 
         elif kind == 'string':
             data : bytearray = bytearray(expression[1].encode('utf8') + b'\0')
@@ -151,7 +147,7 @@ class ArtemisCompiler:
                                            len(self.module.global_values)}')
             global_str.global_constant = True
             global_str.initializer = ir.Constant(str_type, data)
-            ptr = self.builder.bitcast(global_str, self.type_string)
+            ptr = self.builder.bitcast(global_str, TypeEnum.string)
             return ptr
 
         elif kind == 'binop':
@@ -160,12 +156,12 @@ class ArtemisCompiler:
             right_value = self.compile_expr(right_part)
 
             if operator == '+':
-                if left_value.type == self.type_string and right_value.type == self.type_string:
+                if left_value.type == TypeEnum.string and right_value.type == TypeEnum.string:
                     llvm_name: str = 'core_string_concat'
                     func = self.module.globals.get(llvm_name)
                     if not func:
-                        func = ir.Function(self.module, ir.FunctionType(self.type_string, [
-                                           self.type_string, self.type_string]), name=llvm_name)
+                        func = ir.Function(self.module, ir.FunctionType(TypeEnum.string, [
+                                           TypeEnum.string, TypeEnum.string]), name=llvm_name)
                     return self.builder.call(func, [left_value, right_value])
                 return self.builder.add(left_value, right_value)
             elif operator == '-':
@@ -191,13 +187,11 @@ class ArtemisCompiler:
             raise NotImplementedError(f'Expresion kind {kind} not implemented')
 
     def add_c_main(self):
-        # Define: int main() { return _exec(); }
-        func_type : ir.FunctionType = ir.FunctionType(ir.IntType(32), [])
+        func_type : ir.FunctionType = ir.FunctionType(TypeEnum.int32, [])
         main_fn : ir.Function = ir.Function(self.module, func_type, name='main')
         block : ir.Block = main_fn.append_basic_block(name='entry')
         builder : ir.IRBuilder = ir.IRBuilder(block)
 
-        # Call _exec
         exec_fn = self.module.get_global('_exec')
         return_value = builder.call(exec_fn, [])
         builder.ret(return_value)
@@ -205,11 +199,11 @@ class ArtemisCompiler:
 def string_to_ir(string_type: str) -> ir.Type:
     match string_type:
         case 'int':
-            return ir.IntType(32)
+            return TypeEnum.int32
         case 'bool':
-            return ir.IntType(1)
+            return TypeEnum.boolean
         case 'str':
-            return ir.IntType(8).as_pointer()
+            return TypeEnum.string
         case _:
             pass
     return 'NULL'
