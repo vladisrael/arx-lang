@@ -30,11 +30,11 @@ def build(file_in:str) -> None:
     parser : ArtemisParser = ArtemisParser()
 
     tokens : list = list(lexer.tokenize(file_contents))
-    ast : tuple = parser.parse(iter(tokens))
+    debug_print(tokens)
 
+    ast : tuple = parser.parse(iter(tokens))
     if not ast:
         raise RuntimeError('Parsing failed')
-    
     debug_print(ast)
 
     using_modules : tuple = [mod[1] for mod in ast[1]]

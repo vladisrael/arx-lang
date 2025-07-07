@@ -1,10 +1,7 @@
 using io
 
 int _exec() {
-    list:int l = [1, 2 ,4]
-    for (int i in l) {
-        io.print(i)
-        io.print(' ')
-    }
+    string x = io.input('> ')
+    io.print('Hello ' + x + ',\n from ARX')
     return 0
 }

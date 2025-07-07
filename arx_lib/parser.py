@@ -152,6 +152,22 @@ class ArtemisParser(Parser):
     def expression(self, p):
         return ('binop', '<', p.expression0, p.expression1)
 
+    # ----- TYPES -----
+    @_('INT')
+    def type(self, p):
+        return 'int'
+    
+    @_('BOOL')
+    def type(self, p):
+        return 'bool'
+    
+    @_('FLOAT')
+    def type(self, p):
+        return 'float'
+    
+    @_('STR')
+    def type(self, p):
+        return 'string'
 
     # ----- EXPRESSIONS -----
     @_('type ID ASSIGN expression')
@@ -190,22 +206,7 @@ class ArtemisParser(Parser):
     def expression(self, p):
         return ('bool', False)
     
-    # ----- TYPES -----
-    @_('INT')
-    def type(self, p):
-        return 'int'
-    
-    @_('BOOL')
-    def type(self, p):
-        return 'bool'
-    
-    @_('FLOAT')
-    def type(self, p):
-        return 'float'
-    
-    @_('STR')
-    def type(self, p):
-        return 'string'
+    # ----- LISTS -----
     
     @_('LBRACKET list_elements RBRACKET')
     def expression(self, p):
