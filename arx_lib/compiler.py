@@ -36,6 +36,28 @@ class ArtemisCompiler:
 
                 for arx_name, c_name in cfg['functions'].items():
                     self.extern_functions[f'{module_name}.{arx_name}'] = c_name
+        self.list_struct_type : ir.IdentifiedStructType = ir.global_context.get_identified_type('List')
+        self.list_struct_type.set_body(TypeEnum.int32.as_pointer(), TypeEnum.int32)
+    
+    def declare_list_len(self) -> ir.Function:
+        if not hasattr(self, 'list_len_func'):
+            fn_type : ir.FunctionType = ir.FunctionType(TypeEnum.int32, [self.list_struct_type.as_pointer()])
+            self.list_len_func : ir.Function = ir.Function(self.module, fn_type, name='core_list_len')
+        return self.list_len_func
+    
+    def call_list_len(self, list_ptr) -> ir.CallInstr:
+        list_len_fn : ir.Function = self.declare_list_len()
+        return self.builder.call(list_len_fn, [list_ptr])
+    
+    def declare_list_get(self) -> ir.Function:
+        if not hasattr(self, 'list_get_func'):
+            fn_type : ir.FunctionType = ir.FunctionType(TypeEnum.int32, [self.list_struct_type.as_pointer(), TypeEnum.int32])
+            self.list_get_func : ir.Function = ir.Function(self.module, fn_type, name='core_list_get')
+        return self.list_get_func
+
+    def call_list_get(self, list_ptr, index_val):
+        list_get_fn = self.declare_list_get()
+        return self.builder.call(list_get_fn, [list_ptr, index_val])
 
     def compile_function(self, name, parameters, statements):
         arg_types : List[ir.Type] = [string_to_ir(parameter_type) for _id, parameter_type, _name in parameters]
@@ -84,7 +106,7 @@ class ArtemisCompiler:
                 self.variables[variable_name] = ptr
             else:
                 raise NotImplementedError(f'Unsupported type: {variable_type_str}')
-        elif statement[0] == 'if_chain':
+        elif kind == 'if_chain':
             branches = statement[1]
             end_block : ir.Block = self.func.append_basic_block('if_end')
             has_fallthrough : bool = False
@@ -113,6 +135,61 @@ class ArtemisCompiler:
 
             if has_fallthrough and not end_block.is_terminated:
                 self.builder.position_at_start(end_block)
+        elif kind == 'for_in':
+            var_type, var_name, list_name, body = statement[1], statement[2], statement[3], statement[4]
+
+            index_ptr = self.builder.alloca(TypeEnum.int32, name=f"{var_name}_index")
+            self.builder.store(ir.Constant(TypeEnum.int32, 0), index_ptr)
+
+            conditional_block : ir.Block = self.func.append_basic_block('for_cond')
+            body_block : ir.Block = self.func.append_basic_block('for_body')
+            end_block : ir.Block = self.func.append_basic_block('for_end')
+
+            self.builder.branch(conditional_block)
+            self.builder.position_at_start(conditional_block)
+
+            list_ptr = self.variables[list_name]
+            index_value = self.builder.load(index_ptr)
+            list_len = self.call_list_len(list_ptr)
+            cond = self.builder.icmp_signed('<', index_value, list_len)
+            self.builder.cbranch(cond, body_block, end_block)
+
+            self.builder.position_at_start(body_block)
+
+            element = self.call_list_get(list_ptr, index_value)
+            variable_ptr = self.builder.alloca(TypeEnum.int32, name=var_name)
+            self.builder.store(element, variable_ptr)
+            self.variables[var_name] = variable_ptr
+
+            for s in body:
+                self.compile_statement(s)
+
+            new_index = self.builder.add(index_value, ir.Constant(TypeEnum.int32, 1))
+            self.builder.store(new_index, index_ptr)
+            self.builder.branch(conditional_block)
+
+            self.builder.position_at_start(end_block)
+        elif kind == 'declare_list':
+            element_type, name, expression = statement[1], statement[2], statement[3]
+            if expression[0] != 'list_literal':
+                raise TypeError('Expected list literal')
+
+            elements = [self.compile_expression(e) for e in expression[1]]
+
+            # Build array literal
+            array_type : ir.ArrayType = ir.ArrayType(TypeEnum.int32, len(elements))
+            array_const : ir.Constant = ir.Constant(array_type, elements)
+
+            array_ptr : ir.AllocaInstr = self.builder.alloca(array_type)
+            self.builder.store(array_const, array_ptr)
+            casted_ptr = self.builder.bitcast(array_ptr, TypeEnum.int32.as_pointer())
+
+            # Call list_create_int
+            create_fn = ir.Function(self.module,
+                ir.FunctionType(self.list_struct_type.as_pointer(), [TypeEnum.int32.as_pointer(), TypeEnum.int32]),
+                name='core_list_create_int')
+            list_ptr = self.builder.call(create_fn, [casted_ptr, ir.Constant(TypeEnum.int32, len(elements))])
+            self.variables[name] = list_ptr
 
     def compile_expression(self, expression):
         kind = expression[0]

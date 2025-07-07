@@ -1,12 +1,10 @@
 using io
 
 int _exec() {
-    int x = io.input_integer('Peso en KG >')
-    if (x > 100) {
-        io.print('Rango burger')
-        return 1
+    list:int l = [1, 2 ,4]
+    for (int i in l) {
+        io.print(i)
+        io.print(' ')
     }
-    
-    io.print('Rango comun')
     return 0
 }

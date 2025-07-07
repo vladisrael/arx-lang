@@ -106,6 +106,11 @@ class ArtemisParser(Parser):
     def elseif_chain(self, p):
         return []
     
+    # ----- FOR -----
+    @_('FOR LPAREN type ID IN ID RPAREN LBRACE statements RBRACE')
+    def statement(self, p):
+        return ('for_in', p.type, p.ID0, p.ID1, p.statements)
+
     # ----- OPS -----
     @_('expression PLUS expression')
     def expression(self, p):
@@ -152,6 +157,10 @@ class ArtemisParser(Parser):
     @_('type ID ASSIGN expression')
     def statement(self, p):
         return ('declare', p.type, p.ID, p.expression)
+    
+    @_('LIST COLON type ID ASSIGN expression')
+    def statement(self, p):
+        return ('declare_list', p.type, p.ID, p.expression)
 
     @_('function_call')
     def expression(self, p):
@@ -197,6 +206,18 @@ class ArtemisParser(Parser):
     @_('STR')
     def type(self, p):
         return 'string'
+    
+    @_('LBRACKET list_elements RBRACKET')
+    def expression(self, p):
+        return ('list_literal', p.list_elements)
+
+    @_('expression COMMA list_elements')
+    def list_elements(self, p):
+        return [p.expression] + p.list_elements
+
+    @_('expression')
+    def list_elements(self, p):
+        return [p.expression]
 
     # ----- FUNCTION ARGUMENTS -----
     @_('')

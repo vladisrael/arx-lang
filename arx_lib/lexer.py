@@ -5,7 +5,7 @@ class ArtemisLexer(Lexer):
     tokens = {
         FLAG, MANAGED, USING,
         INT, FLOAT, LIST, STR, ANY, VOID, CLASS, SELF, BOOL,
-        TRUE, FALSE,
+        TRUE, FALSE, FOR, IN,
         ID, NUMBER, FLOATNUM, STRING,
         EQEQ, NOTEQ, LTEQ, GTEQ, LT, GT,
         PLUS, MINUS, TIMES, DIVIDE,
@@ -42,6 +42,8 @@ class ArtemisLexer(Lexer):
     BOOL = r'bool'
     IF = r'if'
     ELSE = r'else'
+    FOR = r'for'
+    IN = r'in'
 
     # Operators and punctuation
     EQEQ = r'=='
