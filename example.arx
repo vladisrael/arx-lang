@@ -1,7 +1,6 @@
 using io
 
 int _exec() {
-    string x = io.input('> ')
-    io.print('Hello ' + x + ',\n from ARX')
+    io.print('HELLO WORLD!\n')
     return 0
 }

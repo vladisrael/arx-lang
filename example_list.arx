@@ -1,0 +1,10 @@
+using io
+
+int _exec() {
+    list:int x = [0, 2, 4, 8, 16]
+    for (int i in x) {
+        io.print(i)
+        io.print('\n')
+    }
+    return 0
+}

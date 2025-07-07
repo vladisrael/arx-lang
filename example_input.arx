@@ -1,0 +1,9 @@
+using io
+
+int _exec() {
+    string x = io.input('> ')
+    io.print('Hello ' + x + ' from ARX!\n')
+    if (x == 'Vladimir') {
+        io.print('Thanks dear developer!\n')
+    }
+}
