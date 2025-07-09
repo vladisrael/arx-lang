@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 char* core_string_concat(const char* a, const char* b) {
     size_t len = strlen(a) + strlen(b) + 1;
@@ -30,4 +31,8 @@ int core_list_len(List* list) {
 
 int core_list_get(List* list, int index) {
     return list->data[index];
+}
+
+bool core_string_equal(const char* a, const char* b) {
+    return strcmp(a, b) == 0;
 }

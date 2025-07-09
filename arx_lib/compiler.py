@@ -263,6 +263,13 @@ class ArtemisCompiler:
 
             match operator:
                 case '==':
+                    if left_value.type == TypeEnum.string and right_value.type == TypeEnum.string:
+                        llvm_name: str = 'core_string_equal'
+                        func : ir.Function = self.module.globals.get(llvm_name)
+                        if not func:
+                            func = ir.Function(self.module, ir.FunctionType(TypeEnum.boolean, [
+                                            TypeEnum.string, TypeEnum.string]), name=llvm_name)
+                        return self.builder.call(func, [left_value, right_value])
                     return self.builder.icmp_signed('==', left_value, right_value)
                 case '!=':
                     return self.builder.icmp_signed('!=', left_value, right_value)
@@ -277,7 +284,7 @@ class ArtemisCompiler:
                 case '+':
                     if left_value.type == TypeEnum.string and right_value.type == TypeEnum.string:
                         llvm_name: str = 'core_string_concat'
-                        func = self.module.globals.get(llvm_name)
+                        func : ir.Function = self.module.globals.get(llvm_name)
                         if not func:
                             func = ir.Function(self.module, ir.FunctionType(TypeEnum.string, [
                                             TypeEnum.string, TypeEnum.string]), name=llvm_name)
