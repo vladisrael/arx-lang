@@ -46,7 +46,7 @@ def build(file_in:str) -> None:
 
     for fn in functions:
         if fn[0] == 'function':
-            compiler.compile_function(fn[1], fn[2], fn[3])
+            compiler.compile_function(fn[1], fn[2], fn[3], fn[4])
 
     compiler.add_c_main()
 

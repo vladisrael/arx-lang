@@ -59,14 +59,15 @@ class ArtemisCompiler:
         list_get_fn = self.declare_list_get()
         return self.builder.call(list_get_fn, [list_ptr, index_val])
 
-    def compile_function(self, name, parameters, statements):
+    def compile_function(self, name:str, parameters:list, statements:list, return_type:str):
         arg_types : List[ir.Type] = [string_to_ir(parameter_type) for _id, parameter_type, _name in parameters]
-        func_type : ir.FunctionType = ir.FunctionType(TypeEnum.int32, arg_types)
+        func_type : ir.FunctionType = ir.FunctionType(string_to_ir(return_type), arg_types)
         self.func : ir.Function = ir.Function(self.module, func_type, name=name)
         block : ir.Block = self.func.append_basic_block('entry')
         self.builder : ir.IRBuilder = ir.IRBuilder(block)
 
         self.variables : dict = {}
+        self.current_function_return_type : str = return_type
         for i, (_id, _type, name) in enumerate(parameters):
             arg = self.func.args[i]
             arg.name = name
@@ -78,7 +79,7 @@ class ArtemisCompiler:
             self.compile_statement(statement)
 
         if self.builder.block.terminator is None:
-            self.builder.ret(ir.Constant(TypeEnum.int32, 0))
+            raise Exception(f'Missing return in function {name}')
 
     def compile_statement(self, statement):
         kind = statement[0]
@@ -87,6 +88,10 @@ class ArtemisCompiler:
         elif kind == 'return':
             return_value = self.compile_expression(statement[1])
             self.builder.ret(return_value)
+        elif kind == 'return_void':
+            if self.current_function_return_type != 'void':
+                raise TypeError('Void return used in non-void function')
+            self.builder.ret_void()
         elif kind == 'declare':
             variable_type_str, variable_name, value_expr = statement[1], statement[2], statement[3]
             value = self.compile_expression(value_expr)
@@ -332,7 +337,7 @@ def string_to_ir(string_type: str) -> ir.Type:
             return TypeEnum.string
         case _:
             pass
-    return 'NULL'
+    return TypeEnum.void
 
 def ir_to_string(ir_type: ir.Type) -> str:
     if isinstance(ir_type, ir.IntType):
@@ -342,4 +347,4 @@ def ir_to_string(ir_type: ir.Type) -> str:
             return 'int'
     elif isinstance(ir_type, ir.PointerType):
         return 'str'
-    return 'NULL'
+    return 'void'

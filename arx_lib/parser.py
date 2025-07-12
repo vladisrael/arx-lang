@@ -42,13 +42,13 @@ class ArtemisParser(Parser):
     def function_list(self, p):
         return [p.function]
     
-    @_('INT ID LPAREN RPAREN LBRACE statements RBRACE')
+    @_('type ID LPAREN RPAREN LBRACE statements RBRACE')
     def function(self, p):
-        return ('function', p.ID, [], p.statements, 'int')
+        return ('function', p.ID, [], p.statements, p.type)
     
-    @_('INT ID LPAREN param_list RPAREN LBRACE statements RBRACE')
+    @_('type ID LPAREN param_list RPAREN LBRACE statements RBRACE')
     def function(self, p):
-        return ('function', p.ID, p.param_list, p.statements, 'int')
+        return ('function', p.ID, p.param_list, p.statements, p.type)
     
     # ----- PARAMETERS -----
     @_('param COMMA param_list')
@@ -63,7 +63,7 @@ class ArtemisParser(Parser):
     def param(self, p):
         return ('param', 'int', p.ID)
 
-    @_('STRING ID')
+    @_('STR ID')
     def param(self, p):
         return ('param', 'str', p.ID)
 
@@ -87,6 +87,10 @@ class ArtemisParser(Parser):
     @_('RETURN expression')
     def statement(self, p):
         return ('return', p.expression)
+    
+    @_('RETURN')
+    def statement(self, p):
+        return ('return_void',)
     
     # -- IF / ELSE IF / ELSE CHAIN --
 
@@ -169,6 +173,10 @@ class ArtemisParser(Parser):
     def type(self, p):
         return 'string'
 
+    @_('VOID')
+    def type(self, p):
+        return 'void'
+    
     # ----- EXPRESSIONS -----
     @_('type ID ASSIGN expression')
     def statement(self, p):

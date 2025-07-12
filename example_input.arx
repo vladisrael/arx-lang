@@ -1,9 +1,15 @@
 using io
 
-int _exec() {
-    string x = io.input('> ')
-    io.print('Hello ' + x + ' from ARX!\n')
+void check_developer(string x) {
     if (x == 'Vladimir') {
         io.print('Thanks dear developer!\n')
     }
+    return
+}
+
+int _exec() {
+    string x = io.input('> ')
+    io.print('Hello ' + x + ' from ARX!\n')
+    check_developer(x)
+    return 0
 }
