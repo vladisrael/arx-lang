@@ -3,6 +3,8 @@ type = c_lib
 name = io
 file = io.c
 [functions]
-print = *io_print_int:int;io_print_str:str;io_print_bool:bool;>void
-input = io_input_str:str;>str
-input_integer = io_input_int:str;>int
+print:int         = io_print_int  > void
+print:str         = io_print_str  > void
+print:bool        = io_print_bool > void
+input:str         = io_input_str  > str
+input_integer:str = io_input_int  > int

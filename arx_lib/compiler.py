@@ -6,7 +6,29 @@ import os
 import sys
 import re
 from .data_classes import ArtemisData, TypeEnum
-from typing import List, Tuple, Set, Dict, Optional
+from typing import List, Tuple, Set, Dict, Optional, ItemsView
+
+def parse_function_overloads(items:ItemsView[str, str], module_name: str) -> dict:
+    externs: dict = {}
+    for sig, mapping in items:
+        sig : str = sig.strip()
+        mapping : str = mapping.strip()
+
+        if not sig or not mapping:
+            continue
+
+        # Handle: funcname:arg1,arg2
+        func_name, arg_part = (sig.split(':', 1) + [''])[:2]
+        func_name : str = func_name.strip()
+        arg_types : tuple = tuple(arg.strip() for arg in arg_part.split(',') if arg.strip())
+
+        # Handle: llvm_func > return_type
+        llvm_name, return_type = map(str.strip, mapping.split('>'))
+
+        key : str = f'{module_name}.{func_name}'
+        externs.setdefault(key, {})[arg_types] = (llvm_name, return_type)
+    return externs
+
 
 
 class ArtemisCompiler:
@@ -24,18 +46,24 @@ class ArtemisCompiler:
 
     def load_extern_modules(self, using_modules: List[str]) -> None:
         for path in self.compiler_data.map_paths:
-            maps: str = glob.glob(os.path.join(path, '*.map'))
-            for map_file in maps:
-                cfg: configparser.ConfigParser = configparser.ConfigParser()
+            map_files = glob.glob(os.path.join(path, '*.map'))
+            for map_file in map_files:
+                cfg : configparser.RawConfigParser = configparser.RawConfigParser(delimiters=('='))
                 cfg.read(map_file)
-                module_name: str = cfg['meta']['name']
-                if module_name != 'core':
-                    if module_name not in using_modules:
-                        continue
+                module_name = cfg['meta']['name']
+
+                # Only load core or modules explicitly used
+                if module_name != 'core' and module_name not in using_modules:
+                    continue
+
+                # Track loaded modules
                 self.extern_c.append(module_name)
 
-                for arx_name, c_name in cfg['functions'].items():
-                    self.extern_functions[f'{module_name}.{arx_name}'] = c_name
+                # parse function overloads from .map 'functions' section
+                externs : dict = parse_function_overloads(cfg['functions'].items(), module_name)
+                for full_name, overloads in externs.items():
+                    self.extern_functions.setdefault(full_name, {}).update(overloads)
+
         self.list_struct_type : ir.IdentifiedStructType = ir.global_context.get_identified_type('List')
         self.list_struct_type.set_body(TypeEnum.int32.as_pointer(), TypeEnum.int32)
     
@@ -176,25 +204,26 @@ class ArtemisCompiler:
             self.builder.position_at_start(end_block)
         elif kind == 'declare_list':
             element_type, name, expression = statement[1], statement[2], statement[3]
-            if expression[0] != 'list_literal':
-                raise TypeError('Expected list literal')
+            if expression[0] == 'list_literal':
+                elements = [self.compile_expression(e) for e in expression[1]]
 
-            elements = [self.compile_expression(e) for e in expression[1]]
+                # Build array literal
+                array_type : ir.ArrayType = ir.ArrayType(TypeEnum.int32, len(elements))
+                array_const : ir.Constant = ir.Constant(array_type, elements)
 
-            # Build array literal
-            array_type : ir.ArrayType = ir.ArrayType(TypeEnum.int32, len(elements))
-            array_const : ir.Constant = ir.Constant(array_type, elements)
+                array_ptr : ir.AllocaInstr = self.builder.alloca(array_type)
+                self.builder.store(array_const, array_ptr)
+                casted_ptr = self.builder.bitcast(array_ptr, TypeEnum.int32.as_pointer())
 
-            array_ptr : ir.AllocaInstr = self.builder.alloca(array_type)
-            self.builder.store(array_const, array_ptr)
-            casted_ptr = self.builder.bitcast(array_ptr, TypeEnum.int32.as_pointer())
-
-            # Call list_create_int
-            create_fn = ir.Function(self.module,
-                ir.FunctionType(self.list_struct_type.as_pointer(), [TypeEnum.int32.as_pointer(), TypeEnum.int32]),
-                name='core_list_create_int')
-            list_ptr = self.builder.call(create_fn, [casted_ptr, ir.Constant(TypeEnum.int32, len(elements))])
-            self.variables[name] = list_ptr
+                # Call list_create_int
+                create_fn = ir.Function(self.module,
+                    ir.FunctionType(self.list_struct_type.as_pointer(), [TypeEnum.int32.as_pointer(), TypeEnum.int32]),
+                    name='core_list_create_int')
+                list_ptr = self.builder.call(create_fn, [casted_ptr, ir.Constant(TypeEnum.int32, len(elements))])
+                self.variables[name] = list_ptr
+            else:
+                value = self.compile_expression(expression)
+                self.variables[name] = value
 
     def compile_expression(self, expression):
         kind = expression[0]
@@ -215,37 +244,29 @@ class ArtemisCompiler:
         
         elif kind == 'call_method':
             obj, method, args = expression[1], expression[2], expression[3]
-            full_name: str = obj + '.' + method
+            full_name = f'{obj}.{method}'
+
             if full_name not in self.extern_functions:
-                raise NameError(
-                    f'Function {full_name} not found in extern functions')
+                raise NameError(f'Function {full_name} not found in extern functions')
 
-            llvm_data: str = self.extern_functions[full_name]
+            overloads = self.extern_functions[full_name]
 
-            # Compile arguments
             arg_vals = [self.compile_expression(arg) for arg in args]
-            arg_types = [arg.type for arg in arg_vals]
-            llvm_name, return_type_id = llvm_data.split('>')
-            if llvm_data.startswith('*') or ':' in llvm_data:
-                result: Optional[re.Match] = re.search(
-                    rf'([a-zA-Z_][a-zA-Z0-9_]*)\:{','.join([ir_to_string(arg) for arg in arg_types])};', llvm_data)
-                if not result:
-                    raise TypeError(f'Function {full_name} not does not have ({' '.join(
-                        [ir_to_string(arg) for arg in arg_types])}) arguments type match')
-                llvm_name = result.group(1)
-            return_type: ir.Type = ir.VoidType()
-            match return_type_id:
-                case 'str':
-                    return_type = TypeEnum.string
-                case 'int':
-                    return_type = TypeEnum.int32
-                case 'bool':
-                    return_type = TypeEnum.boolean
-            # Check if already declared
-            func : ir.Function = self.module.globals.get(llvm_name)
+            arg_types = tuple(ir_to_string(arg.type) for arg in arg_vals)
+
+            if arg_types not in overloads:
+                raise TypeError(f'Function {full_name} has no overload matching argument types {arg_types}')
+
+            llvm_name, return_type_id = overloads[arg_types]
+            return_type : ir.Type = string_to_ir(return_type_id)
+            if return_type_id.startswith('list'):
+                return_type : ir.Type = self.list_struct_type.as_pointer()
+
+            func = self.module.globals.get(llvm_name)
             if not func:
-                func_type : ir.FunctionType = ir.FunctionType(return_type, arg_types)
-                func : ir.Function = ir.Function(self.module, func_type, name=llvm_name)
+                func_type = ir.FunctionType(return_type, [arg.type for arg in arg_vals])
+                func = ir.Function(self.module, func_type, name=llvm_name)
+
             return self.builder.call(func, arg_vals)
 
         elif kind == 'int':

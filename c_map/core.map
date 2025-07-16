@@ -3,8 +3,8 @@ type = c_lib
 name = core
 file = core.c
 [functions]
-len = core_list_len:list>int
-string_concat = core_string_concat:str,str;>str
-list_create_int = core_list_create_int:int*,int;>list
-list_get = core_list_get:int*,int;>int
-string_equal = core_string_equal:str,str;>bool
+len:list:int               = core_list_len         > int
+string_concat:str,str      = core_string_concat    > str
+list_create_int:int*,int   = core_list_create_int  > list:int
+list_get:int*,int          = core_list_get         > int
+string_equal:str,str       = core_string_equal     > bool

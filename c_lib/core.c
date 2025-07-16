@@ -1,3 +1,4 @@
+#include "core.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -11,18 +12,28 @@ char* core_string_concat(const char* a, const char* b) {
     return result;
 }
 
-typedef struct {
-    int* data;
-    int length;
-} List;
-
-List* core_list_create_int(int* data, int len) {
+List* core_list_create_int() {
     List* list = malloc(sizeof(List));
-    list->data = malloc(sizeof(int) * len);
-    for (int i = 0; i < len; ++i)
-        list->data[i] = data[i];
-    list->length = len;
+    if (!list) return NULL;
+    list->capacity = 8;
+    list->length = 0;
+    list->data = malloc(sizeof(int) * list->capacity);
+    if (!list->data) {
+        free(list);
+        return NULL;
+    }
     return list;
+}
+
+void core_list_append_int(List* list, int value) {
+    if (!list) return;
+    if (list->length >= list->capacity) {
+        list->capacity *= 2;
+        int* new_data = realloc(list->data, sizeof(int) * list->capacity);
+        if (!new_data) return; // Could handle error here
+        list->data = new_data;
+    }
+    list->data[list->length++] = value;
 }
 
 int core_list_len(List* list) {

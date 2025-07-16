@@ -1,0 +1,6 @@
+[meta]
+type = c_lib
+name = iter
+file = iter.c
+[functions]
+range_int:int,int,int = iter_list_int_range > list:int
