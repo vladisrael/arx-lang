@@ -25,6 +25,15 @@ List* core_list_create_int() {
     return list;
 }
 
+List* core_list_create_int_from(int* data, int len) {
+    List* list = malloc(sizeof(List));
+    list->data = malloc(sizeof(int) * len);
+    for (int i = 0; i < len; ++i)
+        list->data[i] = data[i];
+    list->length = len;
+    return list;
+}
+
 void core_list_append_int(List* list, int value) {
     if (!list) return;
     if (list->length >= list->capacity) {

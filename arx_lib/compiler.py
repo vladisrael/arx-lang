@@ -218,7 +218,7 @@ class ArtemisCompiler:
                 # Call list_create_int
                 create_fn = ir.Function(self.module,
                     ir.FunctionType(self.list_struct_type.as_pointer(), [TypeEnum.int32.as_pointer(), TypeEnum.int32]),
-                    name='core_list_create_int')
+                    name='core_list_create_int_from')
                 list_ptr = self.builder.call(create_fn, [casted_ptr, ir.Constant(TypeEnum.int32, len(elements))])
                 self.variables[name] = list_ptr
             else:
