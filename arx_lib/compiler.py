@@ -6,7 +6,7 @@ import os
 import sys
 import re
 from .data_classes import ArtemisData, TypeEnum
-from typing import List, Tuple, Set, Dict, Optional, ItemsView
+from typing import Union, List, Tuple, Set, Dict, Optional, ItemsView, Any
 
 def parse_function_overloads(items:ItemsView[str, str], module_name: str) -> dict:
     externs: dict = {}
@@ -38,12 +38,14 @@ class ArtemisCompiler:
 
         self.compiler_data: ArtemisData = compiler_data
 
-        self.variables : dict = {}
+        self.variables : Dict[str, ir.AllocaInstr] = {}
         self.loop_continue_stack: List[ir.Block] = []
         self.loop_break_stack: List[ir.Block] = []
         self.loop_counter : int = 0
+        self.function_counter : int = 0
+        self.if_counter : int = 0
         self.extern_c: List[str] = []
-        self.extern_functions: Dict[str, str] = {}
+        self.extern_functions: Dict[str, dict] = {}
 
     def load_extern_modules(self, using_modules: List[str]) -> None:
         for path in self.compiler_data.map_paths:
@@ -51,7 +53,7 @@ class ArtemisCompiler:
             for map_file in map_files:
                 cfg : configparser.RawConfigParser = configparser.RawConfigParser(delimiters=('='))
                 cfg.read(map_file)
-                module_name = cfg['meta']['name']
+                module_name : str = cfg['meta']['name']
 
                 if module_name != 'core' and module_name not in using_modules:
                     continue
@@ -89,15 +91,16 @@ class ArtemisCompiler:
         arg_types : List[ir.Type] = [string_to_ir(parameter_type) for _id, parameter_type, _name in parameters]
         func_type : ir.FunctionType = ir.FunctionType(string_to_ir(return_type), arg_types)
         self.func : ir.Function = ir.Function(self.module, func_type, name=name)
-        block : ir.Block = self.func.append_basic_block('entry')
+        block : ir.Block = self.func.append_basic_block(f'entry_{self.function_counter}')
+        self.function_counter += 1
         self.builder : ir.IRBuilder = ir.IRBuilder(block)
 
-        self.variables : dict = {}
+        self.variables = {}
         self.current_function_return_type : str = return_type
         for i, (_id, _type, name) in enumerate(parameters):
             arg = self.func.args[i]
             arg.name = name
-            ptr = self.builder.alloca(arg.type, name=name)
+            ptr : ir.AllocaInstr = self.builder.alloca(arg.type, name=name)
             self.builder.store(arg, ptr)
             self.variables[name] = ptr
 
@@ -107,8 +110,8 @@ class ArtemisCompiler:
         if self.builder.block.terminator is None:
             raise Exception(f'Missing return in function {name}')
 
-    def compile_statement(self, statement):
-        kind = statement[0]
+    def compile_statement(self, statement:tuple) -> None:
+        kind : str = statement[0]
         if kind == 'expression':
             self.compile_expression(statement[1])
         elif kind == 'return':
@@ -123,23 +126,23 @@ class ArtemisCompiler:
             value = self.compile_expression(value_expr)
 
             if variable_type_str == 'int':
-                ptr = self.builder.alloca(TypeEnum.int32, name=variable_name)
+                ptr : ir.AllocaInstr = self.builder.alloca(TypeEnum.int32, name=variable_name)
                 self.builder.store(value, ptr)
                 self.variables[variable_name] = ptr
             elif variable_type_str == 'bool':
-                bool_type : ir.IntType = ir.IntType(1)
-                ptr = self.builder.alloca(bool_type, name=variable_name)
+                ptr : ir.AllocaInstr = self.builder.alloca(TypeEnum.boolean, name=variable_name)
                 self.builder.store(value, ptr)
                 self.variables[variable_name] = ptr
             elif variable_type_str == 'string':
-                ptr = self.builder.alloca(TypeEnum.string, name=variable_name)
+                ptr : ir.AllocaInstr = self.builder.alloca(TypeEnum.string, name=variable_name)
                 self.builder.store(value, ptr)
                 self.variables[variable_name] = ptr
             else:
                 raise NotImplementedError(f'Unsupported type: {variable_type_str}')
         elif kind == 'if_chain':
             branches = statement[1]
-            end_block : ir.Block = self.func.append_basic_block('if_end')
+            end_block : ir.Block = self.func.append_basic_block(f'if_end_{self.if_counter}')
+            self.if_counter += 1
             has_fallthrough : bool = False
 
             for i, (condition_expression, statements) in enumerate(branches):
@@ -169,7 +172,7 @@ class ArtemisCompiler:
         elif kind == 'for_in':
             var_type, var_name, list_name, body = statement[1], statement[2], statement[3], statement[4]
 
-            index_ptr = self.builder.alloca(TypeEnum.int32, name=f"{var_name}_index")
+            index_ptr : ir.AllocaInstr = self.builder.alloca(TypeEnum.int32, name=f"{var_name}_index")
             self.builder.store(ir.Constant(TypeEnum.int32, 0), index_ptr)
 
             conditional_block : ir.Block = self.func.append_basic_block(f'for_conditional_{self.loop_counter}')
@@ -181,16 +184,16 @@ class ArtemisCompiler:
             self.builder.branch(conditional_block)
             self.builder.position_at_start(conditional_block)
 
-            list_ptr = self.variables[list_name]
-            index_value = self.builder.load(index_ptr)
-            list_len = self.call_list_len(list_ptr)
-            cond = self.builder.icmp_signed('<', index_value, list_len)
+            list_ptr : ir.AllocaInstr = self.variables[list_name]
+            index_value : ir.LoadInstr = self.builder.load(index_ptr)
+            list_len : ir.CallInstr = self.call_list_len(list_ptr)
+            cond : ir.ICMPInstr = self.builder.icmp_signed('<', index_value, list_len)
             self.builder.cbranch(cond, body_block, end_block)
 
             self.builder.position_at_start(body_block)
 
-            element = self.call_list_get(list_ptr, index_value)
-            variable_ptr = self.builder.alloca(TypeEnum.int32, name=var_name)
+            element : ir.CallInstr = self.call_list_get(list_ptr, index_value)
+            variable_ptr : ir.AllocaInstr = self.builder.alloca(TypeEnum.int32, name=var_name)
             self.builder.store(element, variable_ptr)
             self.variables[var_name] = variable_ptr
 
@@ -223,13 +226,14 @@ class ArtemisCompiler:
                 self.builder.store(array_const, array_ptr)
                 casted_ptr = self.builder.bitcast(array_ptr, TypeEnum.int32.as_pointer())
 
-                create_fn = ir.Function(self.module,
+                create_fn : ir.Function = ir.Function(self.module,
                     ir.FunctionType(self.list_struct_type.as_pointer(), [TypeEnum.int32.as_pointer(), TypeEnum.int32]),
-                    name='core_list_create_int_from')
-                list_ptr = self.builder.call(create_fn, [casted_ptr, ir.Constant(TypeEnum.int32, len(elements))])
+                    name='core_list_create_int_from'
+                )
+                list_ptr : ir.CallInstr = self.builder.call(create_fn, [casted_ptr, ir.Constant(TypeEnum.int32, len(elements))])
                 self.variables[name] = list_ptr
             else:
-                value = self.compile_expression(expression)
+                value : ir.CallInstr = self.compile_expression(expression)
                 self.variables[name] = value
 
         elif kind == 'break':
@@ -238,8 +242,8 @@ class ArtemisCompiler:
         elif kind == 'continue':
             self.builder.branch(self.loop_continue_stack[-1])
 
-    def compile_expression(self, expression):
-        kind = expression[0]
+    def compile_expression(self, expression:tuple) -> Union[ir.Constant, Any]:
+        kind : str = expression[0]
 
         if kind == 'call':
             name : str = expression[1]
@@ -275,9 +279,9 @@ class ArtemisCompiler:
             if return_type_id.startswith('list'):
                 return_type : ir.Type = self.list_struct_type.as_pointer()
 
-            func = self.module.globals.get(llvm_name)
+            func : Optional[ir.Function] = self.module.globals.get(llvm_name)
             if not func:
-                func_type = ir.FunctionType(return_type, [arg.type for arg in arg_vals])
+                func_type : ir.FunctionType = ir.FunctionType(return_type, [arg.type for arg in arg_vals])
                 func = ir.Function(self.module, func_type, name=llvm_name)
 
             return self.builder.call(func, arg_vals)
