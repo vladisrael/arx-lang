@@ -185,6 +185,14 @@ class ArtemisParser(Parser):
     @_('LIST COLON type ID ASSIGN expression')
     def statement(self, p):
         return ('declare_list', p.type, p.ID, p.expression)
+    
+    @_('BREAK')
+    def statement(self, p):
+        return ('break',)
+
+    @_('CONTINUE')
+    def statement(self, p):
+        return ('continue',)
 
     @_('function_call')
     def expression(self, p):

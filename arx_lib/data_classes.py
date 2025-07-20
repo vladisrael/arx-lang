@@ -8,6 +8,8 @@ class TypeEnum:
     int32 : ir.IntType = ir.IntType(32)
     int16 : ir.IntType = ir.IntType(16)
     int8 : ir.IntType = ir.IntType(8)
+    float64: ir.DoubleType = ir.DoubleType()
+    float32: ir.FloatType = ir.FloatType()
     boolean : ir.IntType = ir.IntType(1)
     string : ir.PointerType = ir.IntType(8).as_pointer()
     void : ir.VoidType = ir.VoidType()

@@ -17,12 +17,10 @@ def parse_function_overloads(items:ItemsView[str, str], module_name: str) -> dic
         if not sig or not mapping:
             continue
 
-        # Handle: funcname:arg1,arg2
         func_name, arg_part = (sig.split(':', 1) + [''])[:2]
         func_name : str = func_name.strip()
         arg_types : tuple = tuple(arg.strip() for arg in arg_part.split(',') if arg.strip())
 
-        # Handle: llvm_func > return_type
         llvm_name, return_type = map(str.strip, mapping.split('>'))
 
         key : str = f'{module_name}.{func_name}'
@@ -41,6 +39,9 @@ class ArtemisCompiler:
         self.compiler_data: ArtemisData = compiler_data
 
         self.variables : dict = {}
+        self.loop_continue_stack: List[ir.Block] = []
+        self.loop_break_stack: List[ir.Block] = []
+        self.loop_counter : int = 0
         self.extern_c: List[str] = []
         self.extern_functions: Dict[str, str] = {}
 
@@ -52,14 +53,11 @@ class ArtemisCompiler:
                 cfg.read(map_file)
                 module_name = cfg['meta']['name']
 
-                # Only load core or modules explicitly used
                 if module_name != 'core' and module_name not in using_modules:
                     continue
 
-                # Track loaded modules
                 self.extern_c.append(module_name)
 
-                # parse function overloads from .map 'functions' section
                 externs : dict = parse_function_overloads(cfg['functions'].items(), module_name)
                 for full_name, overloads in externs.items():
                     self.extern_functions.setdefault(full_name, {}).update(overloads)
@@ -174,9 +172,11 @@ class ArtemisCompiler:
             index_ptr = self.builder.alloca(TypeEnum.int32, name=f"{var_name}_index")
             self.builder.store(ir.Constant(TypeEnum.int32, 0), index_ptr)
 
-            conditional_block : ir.Block = self.func.append_basic_block('for_cond')
-            body_block : ir.Block = self.func.append_basic_block('for_body')
-            end_block : ir.Block = self.func.append_basic_block('for_end')
+            conditional_block : ir.Block = self.func.append_basic_block(f'for_conditional_{self.loop_counter}')
+            body_block : ir.Block = self.func.append_basic_block(f'for_body_{self.loop_counter}')
+            end_block : ir.Block = self.func.append_basic_block(f'for_end_{self.loop_counter}')
+            continue_block : ir.Block = self.func.append_basic_block(f'for_continue_{self.loop_counter}')
+            self.loop_counter += 1
 
             self.builder.branch(conditional_block)
             self.builder.position_at_start(conditional_block)
@@ -194,20 +194,28 @@ class ArtemisCompiler:
             self.builder.store(element, variable_ptr)
             self.variables[var_name] = variable_ptr
 
-            for s in body:
-                self.compile_statement(s)
+            self.loop_continue_stack.append(continue_block)
+            self.loop_break_stack.append(end_block)
 
-            new_index = self.builder.add(index_value, ir.Constant(TypeEnum.int32, 1))
+            for for_in_statement in body:
+                self.compile_statement(for_in_statement)
+            
+            self.loop_continue_stack.pop()
+            self.loop_break_stack.pop()
+            self.builder.branch(continue_block)
+
+            self.builder.position_at_start(continue_block)
+            new_index = self.builder.add(self.builder.load(index_ptr), ir.Constant(TypeEnum.int32, 1))
             self.builder.store(new_index, index_ptr)
             self.builder.branch(conditional_block)
 
             self.builder.position_at_start(end_block)
+
         elif kind == 'declare_list':
             element_type, name, expression = statement[1], statement[2], statement[3]
             if expression[0] == 'list_literal':
                 elements = [self.compile_expression(e) for e in expression[1]]
 
-                # Build array literal
                 array_type : ir.ArrayType = ir.ArrayType(TypeEnum.int32, len(elements))
                 array_const : ir.Constant = ir.Constant(array_type, elements)
 
@@ -215,7 +223,6 @@ class ArtemisCompiler:
                 self.builder.store(array_const, array_ptr)
                 casted_ptr = self.builder.bitcast(array_ptr, TypeEnum.int32.as_pointer())
 
-                # Call list_create_int
                 create_fn = ir.Function(self.module,
                     ir.FunctionType(self.list_struct_type.as_pointer(), [TypeEnum.int32.as_pointer(), TypeEnum.int32]),
                     name='core_list_create_int_from')
@@ -224,6 +231,12 @@ class ArtemisCompiler:
             else:
                 value = self.compile_expression(expression)
                 self.variables[name] = value
+
+        elif kind == 'break':
+            self.builder.branch(self.loop_break_stack[-1])
+
+        elif kind == 'continue':
+            self.builder.branch(self.loop_continue_stack[-1])
 
     def compile_expression(self, expression):
         kind = expression[0]
@@ -275,7 +288,7 @@ class ArtemisCompiler:
         elif kind == 'string':
             data : bytearray = bytearray(expression[1].encode('utf8') + b'\0')
             str_type : ir.ArrayType = ir.ArrayType(ir.IntType(8), len(data))
-            global_str : ir.GlobalVariable = ir.GlobalVariable(self.module, str_type, name=f'str{
+            global_str : ir.GlobalVariable = ir.GlobalVariable(self.module, str_type, name=f'string_{
                                            len(self.module.global_values)}')
             global_str.global_constant = True
             global_str.initializer = ir.Constant(str_type, data)
@@ -352,6 +365,8 @@ def string_to_ir(string_type: str) -> ir.Type:
     match string_type:
         case 'int':
             return TypeEnum.int32
+        case 'int*':
+            return TypeEnum.int32.as_pointer()
         case 'bool':
             return TypeEnum.boolean
         case 'str':

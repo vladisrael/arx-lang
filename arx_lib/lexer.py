@@ -9,7 +9,7 @@ class ArtemisLexer(Lexer):
         ID, NUMBER, FLOATNUM, STRING,
         EQEQ, NOTEQ, LTEQ, GTEQ, LT, GT,
         PLUS, MINUS, TIMES, DIVIDE,
-        ASSIGN, COLON, COMMA, IF, ELSE, FOR, IN,
+        ASSIGN, COLON, COMMA, IF, ELSE, FOR, IN, BREAK, CONTINUE,
         LBRACE, RBRACE, LPAREN, RPAREN, LBRACKET, RBRACKET, DOT, RETURN,
     }
 
@@ -70,7 +70,9 @@ class ArtemisLexer(Lexer):
             'if' : 'IF',
             'else' : 'ELSE',
             'for' : 'FOR',
-            'in' : 'IN'
+            'in' : 'IN',
+            'break' : 'BREAK',
+            'continue' : 'CONTINUE'
         }
         t.type = keywords.get(t.value, 'ID')
         return t
