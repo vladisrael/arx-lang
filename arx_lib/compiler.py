@@ -38,7 +38,7 @@ class ArtemisCompiler:
 
         self.compiler_data: ArtemisData = compiler_data
 
-        self.variables : Dict[str, ir.AllocaInstr] = {}
+        self.variables : Dict[str, Tuple[ir.AllocaInstr, ir.Type]] = {}
         self.loop_continue_stack: List[ir.Block] = []
         self.loop_break_stack: List[ir.Block] = []
         self.loop_counter : int = 0
@@ -102,7 +102,7 @@ class ArtemisCompiler:
             arg.name = name
             ptr : ir.AllocaInstr = self.builder.alloca(arg.type, name=name)
             self.builder.store(arg, ptr)
-            self.variables[name] = ptr
+            self.variables[name] = (ptr, arg.type)
 
         for statement in statements:
             self.compile_statement(statement)
@@ -128,15 +128,15 @@ class ArtemisCompiler:
             if variable_type_str == 'int':
                 ptr : ir.AllocaInstr = self.builder.alloca(TypeEnum.int32, name=variable_name)
                 self.builder.store(value, ptr)
-                self.variables[variable_name] = ptr
+                self.variables[variable_name] = (ptr, value.type)
             elif variable_type_str == 'bool':
                 ptr : ir.AllocaInstr = self.builder.alloca(TypeEnum.boolean, name=variable_name)
                 self.builder.store(value, ptr)
-                self.variables[variable_name] = ptr
+                self.variables[variable_name] = (ptr, value.type)
             elif variable_type_str == 'string':
                 ptr : ir.AllocaInstr = self.builder.alloca(TypeEnum.string, name=variable_name)
                 self.builder.store(value, ptr)
-                self.variables[variable_name] = ptr
+                self.variables[variable_name] = (ptr, value.type)
             else:
                 raise NotImplementedError(f'Unsupported type: {variable_type_str}')
         elif kind == 'if_chain':
@@ -184,7 +184,7 @@ class ArtemisCompiler:
             self.builder.branch(conditional_block)
             self.builder.position_at_start(conditional_block)
 
-            list_ptr : ir.AllocaInstr = self.variables[list_name]
+            list_ptr : ir.AllocaInstr = self.variables[list_name][0]
             index_value : ir.LoadInstr = self.builder.load(index_ptr)
             list_len : ir.CallInstr = self.call_list_len(list_ptr)
             cond : ir.ICMPInstr = self.builder.icmp_signed('<', index_value, list_len)
@@ -195,7 +195,7 @@ class ArtemisCompiler:
             element : ir.CallInstr = self.call_list_get(list_ptr, index_value)
             variable_ptr : ir.AllocaInstr = self.builder.alloca(TypeEnum.int32, name=var_name)
             self.builder.store(element, variable_ptr)
-            self.variables[var_name] = variable_ptr
+            self.variables[var_name] = (variable_ptr, string_to_ir(var_type))
 
             self.loop_continue_stack.append(continue_block)
             self.loop_break_stack.append(end_block)
@@ -211,6 +211,39 @@ class ArtemisCompiler:
             new_index = self.builder.add(self.builder.load(index_ptr), ir.Constant(TypeEnum.int32, 1))
             self.builder.store(new_index, index_ptr)
             self.builder.branch(conditional_block)
+
+            self.builder.position_at_start(end_block)
+
+        elif kind == 'while':
+            condition_expr, body = statement[1], statement[2]
+
+            condition_block: ir.Block = self.func.append_basic_block(f'while_conditional_{self.loop_counter}')
+            body_block: ir.Block = self.func.append_basic_block(f'while_body_{self.loop_counter}')
+            end_block: ir.Block = self.func.append_basic_block(f'while_end_{self.loop_counter}')
+            continue_block: ir.Block = self.func.append_basic_block(f'while_continue_{self.loop_counter}')
+            self.loop_counter += 1
+
+            self.builder.branch(condition_block)
+
+            self.builder.position_at_start(condition_block)
+            condition_value: ir.Value = self.compile_expression(condition_expr)
+            self.builder.cbranch(condition_value, body_block, end_block)
+
+            self.builder.position_at_start(body_block)
+
+            self.loop_break_stack.append(end_block)
+            self.loop_continue_stack.append(continue_block)
+
+            for in_while_statement in body:
+                self.compile_statement(in_while_statement)
+
+            self.loop_break_stack.pop()
+            self.loop_continue_stack.pop()
+
+            self.builder.branch(continue_block)
+
+            self.builder.position_at_start(continue_block)
+            self.builder.branch(condition_block)
 
             self.builder.position_at_start(end_block)
 
@@ -231,10 +264,10 @@ class ArtemisCompiler:
                     name='core_list_create_int_from'
                 )
                 list_ptr : ir.CallInstr = self.builder.call(create_fn, [casted_ptr, ir.Constant(TypeEnum.int32, len(elements))])
-                self.variables[name] = list_ptr
+                self.variables[name] = (list_ptr, self.list_struct_type.as_pointer())
             else:
                 value : ir.CallInstr = self.compile_expression(expression)
-                self.variables[name] = value
+                self.variables[name] = [value, value.type]
 
         elif kind == 'break':
             self.builder.branch(self.loop_break_stack[-1])
@@ -242,7 +275,22 @@ class ArtemisCompiler:
         elif kind == 'continue':
             self.builder.branch(self.loop_continue_stack[-1])
 
-    def compile_expression(self, expression:tuple) -> Union[ir.Constant, Any]:
+        elif kind == 'assign':
+            var_name : str = statement[1]
+            expr : tuple = statement[2]
+
+            value : ir.Constant = self.compile_expression(expr)
+
+            if var_name not in self.variables:
+                raise NameError(f'Variable {var_name} is not declared')
+            
+            ptr : ir.AllocaInstr = self.variables[var_name][0]
+            if ptr.type.pointee != value.type:
+                raise TypeError(f'Type mismatch in assignment to {var_name} expected {ptr.type} and got {value.type}')
+            
+            self.builder.store(value, ptr)
+
+    def compile_expression(self, expression:tuple) -> Union[ir.Value, Any]:
         kind : str = expression[0]
 
         if kind == 'call':
@@ -343,10 +391,10 @@ class ArtemisCompiler:
                     raise NotImplementedError(f'Unsupported operator: {operator}')
 
         elif kind == 'var':
-            var_name = expression[1]
+            var_name : str = expression[1]
             if var_name not in self.variables:
                 raise NameError(f'Undefined variable: {var_name}')
-            ptr = self.variables[var_name]
+            ptr : ir.AllocaInstr = self.variables[var_name][0]
             return self.builder.load(ptr)
 
         elif kind == 'bool':

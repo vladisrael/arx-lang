@@ -116,6 +116,11 @@ class ArtemisParser(Parser):
     def statement(self, p) -> tuple:
         return ('for_in', p.type, p.ID0, p.ID1, p.statements)
 
+    # ----- WHILE -----
+    @_('WHILE LPAREN expression RPAREN LBRACE statements RBRACE')  # type: ignore[name-defined]
+    def statement(self, p) -> tuple:
+        return ('while', p.expression, p.statements)
+
     # ----- OPS -----
     @_('expression PLUS expression') # type: ignore[name-defined]
     def expression(self, p) -> tuple:
@@ -182,6 +187,10 @@ class ArtemisParser(Parser):
     @_('type ID ASSIGN expression') # type: ignore[name-defined]
     def statement(self, p) -> tuple:
         return ('declare', p.type, p.ID, p.expression)
+    
+    @_('ID ASSIGN expression')  # type: ignore[name-defined]
+    def statement(self, p) -> tuple:
+        return ('assign', p.ID, p.expression)
     
     @_('LIST COLON type ID ASSIGN expression') # type: ignore[name-defined]
     def statement(self, p) -> tuple:
@@ -253,3 +262,7 @@ class ArtemisParser(Parser):
     @_('ID') # type: ignore[name-defined]
     def expression(self, p) -> tuple:
         return ('var', p.ID)
+    
+    @_('LPAREN expression RPAREN') # type: ignore[name-defined]
+    def expression(self, p) -> list:
+        return p.expression

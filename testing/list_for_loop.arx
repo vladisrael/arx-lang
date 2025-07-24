@@ -1,0 +1,17 @@
+using io
+using iter
+
+int _exec() {
+    list:int x = iter.range_int(0, 100, 7)
+    for (int i in x) {
+        io.print(i)
+        io.print('\n')
+    }
+    int y = 1
+    while(y < 100) {
+        io.print(y)
+        io.print('\n')
+        y = y + 3
+    }
+    return 0
+}

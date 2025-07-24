@@ -10,7 +10,7 @@ class ArtemisLexer(Lexer):
         'ID', 'NUMBER', 'FLOATNUMBER', 'STRING',
         'EQEQ', 'NOTEQ', 'LTEQ', 'GTEQ', 'LT', 'GT',
         'PLUS', 'MINUS', 'TIMES', 'DIVIDE',
-        'ASSIGN', 'COLON', 'COMMA', 'IF', 'ELSE', 'FOR', 'IN', 'BREAK', 'CONTINUE',
+        'ASSIGN', 'COLON', 'COMMA', 'IF', 'ELSE', 'WHILE', 'FOR', 'IN', 'BREAK', 'CONTINUE',
         'LBRACE', 'RBRACE', 'LPAREN', 'RPAREN', 'LBRACKET', 'RBRACKET', 'DOT', 'RETURN',
     }
 
@@ -80,6 +80,7 @@ class ArtemisLexer(Lexer):
             'bool' : 'BOOL',
             'if' : 'IF',
             'else' : 'ELSE',
+            'while' : 'WHILE',
             'for' : 'FOR',
             'in' : 'IN',
             'break' : 'BREAK',
