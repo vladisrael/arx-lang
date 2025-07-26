@@ -1,0 +1,11 @@
+using io
+using iter
+
+int _exec() {
+    list:float x = [1.5, 2.7, 3.75]
+    for (float i in x) {
+        io.print(i)
+        io.print('\n')
+    }
+    return 0
+}

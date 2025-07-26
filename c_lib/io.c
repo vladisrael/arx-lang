@@ -9,12 +9,16 @@ void io_print_int(int x) {
     printf("%d", x);
 }
 
+void io_print_float(float x) {
+    printf("%f", x);
+}
+
 void io_print_str(const char* s) {
     printf("%s", s);
 }
 
 void io_print_bool(bool b) {
-    printf(b ? "true\n" : "false");
+    printf(b ? "true" : "false");
 }
 
 // Read a line from stdin (simple version)

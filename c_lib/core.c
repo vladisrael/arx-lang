@@ -1,5 +1,6 @@
 #include "core.h"
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 
@@ -12,47 +13,75 @@ char* core_string_concat(const char* a, const char* b) {
     return result;
 }
 
-List* core_list_create_int() {
+List* core_list_create(int64_t element_size, bool is_pointer) {
     List* list = malloc(sizeof(List));
     if (!list) return NULL;
+
     list->capacity = 8;
     list->length = 0;
-    list->data = malloc(sizeof(int) * list->capacity);
+    list->element_size = element_size;
+    list->is_pointer = is_pointer;
+    list->data = malloc(element_size * list->capacity);
+
     if (!list->data) {
         free(list);
         return NULL;
     }
+
     return list;
 }
 
-List* core_list_create_int_from(int* data, int len) {
+List* core_list_create_from(void* data, int len, int64_t element_size, bool is_pointer) {
     List* list = malloc(sizeof(List));
-    list->data = malloc(sizeof(int) * len);
-    for (int i = 0; i < len; ++i)
-        list->data[i] = data[i];
+    if (!list) return NULL;
+
     list->length = len;
+    list->capacity = len;
+    list->element_size = element_size;
+    list->is_pointer = is_pointer;
+
+    list->data = malloc(len * element_size);
+    if (!list->data) {
+        free(list);
+        return NULL;
+    }
+
+    memcpy(list->data, data, len * element_size);
     return list;
 }
 
-void core_list_append_int(List* list, int value) {
+void core_list_append(List* list, void* value) {
     if (!list) return;
+
     if (list->length >= list->capacity) {
         list->capacity *= 2;
-        int* new_data = realloc(list->data, sizeof(int) * list->capacity);
-        if (!new_data) return; // Could handle error here
+        void* new_data = realloc(list->data, list->element_size * list->capacity);
+        if (!new_data) return;
         list->data = new_data;
     }
-    list->data[list->length++] = value;
+
+    void* dest = (char*)list->data + list->length * list->element_size;
+    memcpy(dest, value, list->element_size);
+    list->length++;
 }
 
 int core_list_len(List* list) {
-    return list->length;
+    return list ? list->length : 0;
 }
 
-int core_list_get(List* list, int index) {
-    return list->data[index];
+void* core_list_get(List* list, int index) {
+    if (!list || index < 0 || index >= list->length) return NULL;
+
+    void* ptr = (void*)list->data + index * list->element_size;
+
+    return list->is_pointer ? *(void**)ptr : ptr;
 }
 
+void core_list_free(List* list) {
+    if (!list) return;
+    free(list->data);
+    free(list);
+}
 bool core_string_equal(const char* a, const char* b) {
     return strcmp(a, b) == 0;
 }

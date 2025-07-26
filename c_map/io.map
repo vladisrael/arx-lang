@@ -4,6 +4,7 @@ name = io
 file = io.c
 [functions]
 print:int         = io_print_int  > void
+print:float       = io_print_float > void
 print:str         = io_print_str  > void
 print:bool        = io_print_bool > void
 input:str         = io_input_str  > str

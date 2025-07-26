@@ -64,6 +64,10 @@ class ArtemisParser(Parser):
     def param(self, p) -> tuple:
         return ('param', 'int', p.ID)
 
+    @_('FLOAT ID') # type: ignore[name-defined]
+    def param(self, p) -> tuple:
+        return ('param', 'float', p.ID)
+
     @_('STR ID') # type: ignore[name-defined]
     def param(self, p) -> tuple:
         return ('param', 'str', p.ID)
@@ -220,6 +224,10 @@ class ArtemisParser(Parser):
     def expression(self, p) -> tuple:
         return ('string', p.STRING)
 
+    @_('FLOATNUMBER') # type: ignore[name-defined]
+    def expression(self, p) -> tuple:
+        return ('float', p.FLOATNUMBER)
+    
     @_('NUMBER') # type: ignore[name-defined]
     def expression(self, p) -> tuple:
         return ('int', p.NUMBER)

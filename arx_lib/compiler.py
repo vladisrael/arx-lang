@@ -28,11 +28,19 @@ def parse_function_overloads(items:ItemsView[str, str], module_name: str) -> dic
     return externs
 
 
-
 class ArtemisCompiler:
     def __init__(self, compiler_data: ArtemisData) -> None:
+        binding.initialize()
+        binding.initialize_native_target()
+        binding.initialize_native_asmprinter()
         self.module: ir.Module = ir.Module(name='arx')
         self.module.triple = binding.get_default_triple()
+        self.target : binding.Target = binding.Target.from_default_triple()
+        self.target_machine : binding.TargetMachine = self.target.create_target_machine()
+        llvm_ir : str = str(self.module)
+        binding_module : binding.ModuleRef = binding.parse_assembly(llvm_ir)
+        binding_module.verify()
+        
         self.builder : Optional[ir.IRBuilder] = None
         self.func : Optional[ir.Function] = None
 
@@ -44,8 +52,52 @@ class ArtemisCompiler:
         self.loop_counter : int = 0
         self.function_counter : int = 0
         self.if_counter : int = 0
+        self.get_abi_counter : int = 0
         self.extern_c: List[str] = []
         self.extern_functions: Dict[str, dict] = {}
+
+    def get_abi_size_from_ir_type(self, ir_type: ir.Type) -> int:
+        if isinstance(ir_type, ir.IntType):
+            return ir_type.width // 8
+        elif isinstance(ir_type, ir.PointerType):
+            return 8
+        elif isinstance(ir_type, ir.FloatType):
+            return 4
+        elif isinstance(ir_type, ir.DoubleType):
+            return 8
+        elif isinstance(ir_type, ir.ArrayType):
+            elem_size = self.get_abi_size_from_ir_type(ir_type.element)
+            return elem_size * ir_type.count
+        elif isinstance(ir_type, ir.LiteralStructType) or isinstance(ir_type, ir.IdentifiedStructType):
+            total_size = 0
+            for elem in ir_type.elements:
+                total_size += self.get_abi_size_from_ir_type(elem)
+            return total_size
+        else:
+            raise NotImplementedError(f'ABI size calculation not implemented for {ir_type}')
+
+
+    def allocate_and_copy_array(self, elements: list[ir.Value], element_type: ir.Type) -> ir.Value:
+        element_count : int = len(elements)
+        element_size : int = self.get_abi_size_from_ir_type(element_type)
+        total_size : ir.Constant = ir.Constant(TypeEnum.int32, element_count * element_size)
+
+        malloc_fn : ir.Function = self.declare_malloc()
+        
+        heap_pointer = self.builder.call(malloc_fn, [self.builder.zext(total_size, TypeEnum.int64)], name='heap_pointer')
+        typed_pointer = self.builder.bitcast(heap_pointer, element_type.as_pointer())
+
+        for i, element in enumerate(elements):
+            index = ir.Constant(TypeEnum.int32, i)
+            element_address = self.builder.gep(typed_pointer, [index], name=f'element_pointer_{i}')
+            
+            element_value = element
+            if element.type.is_pointer and not element.type == element_type:
+                element_value = self.builder.load(element)
+
+            self.builder.store(element_value, element_address)
+
+        return heap_pointer
 
     def load_extern_modules(self, using_modules: List[str]) -> None:
         for path in self.compiler_data.map_paths:
@@ -65,27 +117,38 @@ class ArtemisCompiler:
                     self.extern_functions.setdefault(full_name, {}).update(overloads)
 
         self.list_struct_type : ir.IdentifiedStructType = ir.global_context.get_identified_type('List')
-        self.list_struct_type.set_body(TypeEnum.int32.as_pointer(), TypeEnum.int32)
+        self.list_struct_type.set_body(
+            TypeEnum.int8.as_pointer(),
+            TypeEnum.int32,
+            TypeEnum.int32,
+            TypeEnum.int64,
+            TypeEnum.boolean
+        )
     
+    def declare_malloc(self) -> ir.Function:
+        malloc_ty : ir.FunctionType = ir.FunctionType(TypeEnum.int8.as_pointer(), [TypeEnum.int64])
+        malloc_fn : ir.Function = self.module.globals.get('malloc')
+        if malloc_fn is None:
+            malloc_fn = ir.Function(self.module, malloc_ty, name='malloc')
+        return malloc_fn
+
     def declare_list_len(self) -> ir.Function:
         if not hasattr(self, 'list_len_func'):
             fn_type : ir.FunctionType = ir.FunctionType(TypeEnum.int32, [self.list_struct_type.as_pointer()])
             self.list_len_func : ir.Function = ir.Function(self.module, fn_type, name='core_list_len')
         return self.list_len_func
-    
-    def call_list_len(self, list_ptr) -> ir.CallInstr:
-        list_len_fn : ir.Function = self.declare_list_len()
-        return self.builder.call(list_len_fn, [list_ptr])
-    
+
+    def call_list_len(self, list_pointer:ir.AllocaInstr) -> ir.CallInstr:
+        return self.builder.call(self.declare_list_len(), [list_pointer])
+
     def declare_list_get(self) -> ir.Function:
         if not hasattr(self, 'list_get_func'):
-            fn_type : ir.FunctionType = ir.FunctionType(TypeEnum.int32, [self.list_struct_type.as_pointer(), TypeEnum.int32])
+            fn_type : ir.FunctionType = ir.FunctionType(TypeEnum.int8.as_pointer(), [self.list_struct_type.as_pointer(), TypeEnum.int32])
             self.list_get_func : ir.Function = ir.Function(self.module, fn_type, name='core_list_get')
         return self.list_get_func
 
-    def call_list_get(self, list_ptr, index_val):
-        list_get_fn = self.declare_list_get()
-        return self.builder.call(list_get_fn, [list_ptr, index_val])
+    def call_list_get(self, list_pointer:ir.AllocaInstr, index_value:ir.LoadInstr) -> ir.CallInstr:
+        return self.builder.call(self.declare_list_get(), [list_pointer, index_value])
 
     def compile_function(self, name:str, parameters:list, statements:list, return_type:str):
         arg_types : List[ir.Type] = [string_to_ir(parameter_type) for _id, parameter_type, _name in parameters]
@@ -172,8 +235,8 @@ class ArtemisCompiler:
         elif kind == 'for_in':
             var_type, var_name, list_name, body = statement[1], statement[2], statement[3], statement[4]
 
-            index_ptr : ir.AllocaInstr = self.builder.alloca(TypeEnum.int32, name=f"{var_name}_index")
-            self.builder.store(ir.Constant(TypeEnum.int32, 0), index_ptr)
+            index_pointer : ir.AllocaInstr = self.builder.alloca(TypeEnum.int32, name=f"{var_name}_index")
+            self.builder.store(ir.Constant(TypeEnum.int32, 0), index_pointer)
 
             conditional_block : ir.Block = self.func.append_basic_block(f'for_conditional_{self.loop_counter}')
             body_block : ir.Block = self.func.append_basic_block(f'for_body_{self.loop_counter}')
@@ -184,18 +247,26 @@ class ArtemisCompiler:
             self.builder.branch(conditional_block)
             self.builder.position_at_start(conditional_block)
 
-            list_ptr : ir.AllocaInstr = self.variables[list_name][0]
-            index_value : ir.LoadInstr = self.builder.load(index_ptr)
-            list_len : ir.CallInstr = self.call_list_len(list_ptr)
+            list_pointer : ir.AllocaInstr = self.variables[list_name][0]
+            index_value : ir.LoadInstr = self.builder.load(index_pointer)
+            list_len : ir.CallInstr = self.call_list_len(list_pointer)
             cond : ir.ICMPInstr = self.builder.icmp_signed('<', index_value, list_len)
             self.builder.cbranch(cond, body_block, end_block)
-
             self.builder.position_at_start(body_block)
 
-            element : ir.CallInstr = self.call_list_get(list_ptr, index_value)
-            variable_ptr : ir.AllocaInstr = self.builder.alloca(TypeEnum.int32, name=var_name)
-            self.builder.store(element, variable_ptr)
-            self.variables[var_name] = (variable_ptr, string_to_ir(var_type))
+            element_pointer : ir.CallInstr = self.call_list_get(list_pointer, index_value)
+            element_type : ir.Type = string_to_ir(var_type)
+            if element_type.is_pointer:
+                element_value = self.builder.bitcast(element_pointer, element_type)
+            else:
+                casted_ptr = self.builder.bitcast(
+                    element_pointer,
+                    element_type.as_pointer()
+                )
+                element_value = self.builder.load(casted_ptr)
+            variable_pointer = self.builder.alloca(string_to_ir(var_type), name=var_name)
+            self.builder.store(element_value, variable_pointer)
+            self.variables[var_name] = (variable_pointer, string_to_ir(var_type))
 
             self.loop_continue_stack.append(continue_block)
             self.loop_break_stack.append(end_block)
@@ -208,8 +279,8 @@ class ArtemisCompiler:
             self.builder.branch(continue_block)
 
             self.builder.position_at_start(continue_block)
-            new_index = self.builder.add(self.builder.load(index_ptr), ir.Constant(TypeEnum.int32, 1))
-            self.builder.store(new_index, index_ptr)
+            new_index = self.builder.add(index_value, ir.Constant(TypeEnum.int32, 1))
+            self.builder.store(new_index, index_pointer)
             self.builder.branch(conditional_block)
 
             self.builder.position_at_start(end_block)
@@ -249,25 +320,38 @@ class ArtemisCompiler:
 
         elif kind == 'declare_list':
             element_type, name, expression = statement[1], statement[2], statement[3]
+
             if expression[0] == 'list_literal':
                 elements = [self.compile_expression(e) for e in expression[1]]
 
-                array_type : ir.ArrayType = ir.ArrayType(TypeEnum.int32, len(elements))
-                array_const : ir.Constant = ir.Constant(array_type, elements)
+                llvm_element_type : ir.Type = string_to_ir(element_type)
 
-                array_ptr : ir.AllocaInstr = self.builder.alloca(array_type)
-                self.builder.store(array_const, array_ptr)
-                casted_ptr = self.builder.bitcast(array_ptr, TypeEnum.int32.as_pointer())
+                heap_pointer : ir.Value = self.allocate_and_copy_array(elements, llvm_element_type)
 
-                create_fn : ir.Function = ir.Function(self.module,
-                    ir.FunctionType(self.list_struct_type.as_pointer(), [TypeEnum.int32.as_pointer(), TypeEnum.int32]),
-                    name='core_list_create_int_from'
+                create_fn_type : ir.FunctionType = ir.FunctionType(
+                    self.list_struct_type.as_pointer(),
+                    [TypeEnum.int8.as_pointer(), TypeEnum.int32, TypeEnum.int32, TypeEnum.boolean]
                 )
-                list_ptr : ir.CallInstr = self.builder.call(create_fn, [casted_ptr, ir.Constant(TypeEnum.int32, len(elements))])
-                self.variables[name] = (list_ptr, self.list_struct_type.as_pointer())
+                create_fn : ir.Function = self.module.globals.get('core_list_create_from')
+                if create_fn is None:
+                    create_fn = ir.Function(self.module, create_fn_type, name='core_list_create_from')
+
+                element_size_bytes : int = self.get_abi_size_from_ir_type(llvm_element_type)
+                list_pointer = self.builder.call(
+                    create_fn,
+                    [
+                        heap_pointer,
+                        ir.Constant(TypeEnum.int32, len(elements)),
+                        ir.Constant(TypeEnum.int32, element_size_bytes),
+                        ir.Constant(TypeEnum.boolean, int(llvm_element_type.is_pointer))
+                    ]
+                )
+
+                self.variables[name] = (list_pointer, self.list_struct_type.as_pointer())
+
             else:
                 value : ir.CallInstr = self.compile_expression(expression)
-                self.variables[name] = [value, value.type]
+                self.variables[name] = (value, value.type)
 
         elif kind == 'break':
             self.builder.branch(self.loop_break_stack[-1])
@@ -284,11 +368,11 @@ class ArtemisCompiler:
             if var_name not in self.variables:
                 raise NameError(f'Variable {var_name} is not declared')
             
-            ptr : ir.AllocaInstr = self.variables[var_name][0]
-            if ptr.type.pointee != value.type:
-                raise TypeError(f'Type mismatch in assignment to {var_name} expected {ptr.type} and got {value.type}')
+            pointer : ir.AllocaInstr = self.variables[var_name][0]
+            if pointer.type.pointee != value.type:
+                raise TypeError(f'Type mismatch in assignment to {var_name} expected {pointer.type} and got {value.type}')
             
-            self.builder.store(value, ptr)
+            self.builder.store(value, pointer)
 
     def compile_expression(self, expression:tuple) -> Union[ir.Value, Any]:
         kind : str = expression[0]
@@ -336,6 +420,9 @@ class ArtemisCompiler:
 
         elif kind == 'int':
             return ir.Constant(TypeEnum.int32, expression[1])
+        
+        elif kind == 'float':
+            return ir.Constant(TypeEnum.float32, expression[1])
 
         elif kind == 'string':
             data : bytearray = bytearray(expression[1].encode('utf8') + b'\0')
@@ -419,9 +506,13 @@ def string_to_ir(string_type: str) -> ir.Type:
             return TypeEnum.int32
         case 'int*':
             return TypeEnum.int32.as_pointer()
+        case 'float':
+            return TypeEnum.float32
         case 'bool':
             return TypeEnum.boolean
         case 'str':
+            return TypeEnum.string
+        case 'string':
             return TypeEnum.string
         case _:
             pass
@@ -433,6 +524,8 @@ def ir_to_string(ir_type: ir.Type) -> str:
             return 'bool'
         elif ir_type.width == 32:
             return 'int'
+    elif isinstance(ir_type, ir.FloatType):
+        return 'float'
     elif isinstance(ir_type, ir.PointerType):
         return 'str'
     return 'void'

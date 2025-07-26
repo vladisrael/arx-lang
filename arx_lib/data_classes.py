@@ -14,7 +14,6 @@ class TypeEnum:
     string : ir.PointerType = ir.IntType(8).as_pointer()
     void : ir.VoidType = ir.VoidType()
 
-
 @dataclass
 class ArtemisData:
     map_paths:Set[str] = field(default_factory=set)
