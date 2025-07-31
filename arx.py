@@ -54,8 +54,10 @@ def build(file_in:str) -> None:
     llc_path : Optional[str] = shutil.which('llc')
     gcc_path : Optional[str] = shutil.which('gcc')
 
-    if (not llc_path) or (not gcc_path):
-        raise EnvironmentError('Make sure (llc) and (gcc) are installed and on your PATH.')
+    if (not llc_path):
+        raise EnvironmentError('Make sure (llc) are installed and on your PATH.')
+    if (not gcc_path):
+        raise EnvironmentError('Make sure (gcc) are installed and on your PATH.')
 
     os.makedirs(os.path.join(executable_dir, 'build'), exist_ok=True)
     os.makedirs(os.path.join(executable_dir, 'out'), exist_ok=True)
@@ -89,6 +91,15 @@ if __name__ == '__main__':
             case 'version':
                 print(version_string)
                 print('Python', platform.python_version())
+                exit(0)          
+            case 'dependencies':
+                llc_path : Optional[str] = shutil.which('llc')
+                gcc_path : Optional[str] = shutil.which('gcc')
+                if (not llc_path):
+                    raise EnvironmentError('Make sure (llc) are installed and on your PATH.')
+                if (not gcc_path):
+                    raise EnvironmentError('Make sure (gcc) are installed and on your PATH.')
+                print('Both (llc) and (gcc) were found in PATH')
                 exit(0)
             case 'build':
                 if len(sys.argv) > 2:
