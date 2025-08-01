@@ -17,6 +17,17 @@ if getattr(sys, 'frozen', False):
     executable_dir = os.path.dirname(sys.executable)
 os.chdir(executable_dir)
 
+def check_environment() -> None:
+    llc_path : Optional[str] = shutil.which('llc')
+    gcc_path : Optional[str] = shutil.which('gcc')
+    if (not llc_path):
+        print('Make sure (llc) is installed and on your PATH.')
+    if (not gcc_path):
+        print('Make sure (gcc) is installed and on your PATH.')
+    if (not llc_path) and (not gcc_path):
+        raise EnvironmentError('Make sure (llc) and (gcc) are installed and on your PATH.')
+    print('Both (llc) and (gcc) were found in PATH')
+
 def build(file_in:str) -> None:
     with open(file_in) as f:
         file_contents : str = f.read()
@@ -55,9 +66,9 @@ def build(file_in:str) -> None:
     gcc_path : Optional[str] = shutil.which('gcc')
 
     if (not llc_path):
-        raise EnvironmentError('Make sure (llc) are installed and on your PATH.')
+        raise EnvironmentError('Make sure (llc) is installed and on your PATH.')
     if (not gcc_path):
-        raise EnvironmentError('Make sure (gcc) are installed and on your PATH.')
+        raise EnvironmentError('Make sure (gcc) is installed and on your PATH.')
 
     os.makedirs(os.path.join(executable_dir, 'build'), exist_ok=True)
     os.makedirs(os.path.join(executable_dir, 'out'), exist_ok=True)
@@ -81,7 +92,7 @@ def build(file_in:str) -> None:
     print(f'[ {total_libs}/{total_libs} ]' + ' [main]')
     out_executable : str = os.path.join(executable_dir, 'out', os.path.basename(file_in).rsplit('.', 1)[0] + ('.exe' if is_windows else ''))
     subprocess.run(final_command + ['-o', out_executable])
-    print('Built at: ' + out_executable)
+    print(f'Built at [ {out_executable} ]')
 
 if __name__ == '__main__':
     print('Artemis (ARX)')
@@ -91,25 +102,27 @@ if __name__ == '__main__':
             case 'version':
                 print(version_string)
                 print('Python', platform.python_version())
-                exit(0)          
-            case 'dependencies':
-                llc_path : Optional[str] = shutil.which('llc')
-                gcc_path : Optional[str] = shutil.which('gcc')
-                if (not llc_path):
-                    raise EnvironmentError('Make sure (llc) are installed and on your PATH.')
-                if (not gcc_path):
-                    raise EnvironmentError('Make sure (gcc) are installed and on your PATH.')
-                print('Both (llc) and (gcc) were found in PATH')
+                exit(0)
+            case 'insight':
+                tokei_path : Optional[str] = shutil.which('tokei')
+                if (not tokei_path):
+                    raise EnvironmentError('Make sure (tokei) is installed and on your PATH.')
+                subprocess.run([tokei_path, file_dir])
+                exit(0)
+            case 'environment':
+                check_environment()
                 exit(0)
             case 'build':
                 if len(sys.argv) > 2:
                     if os.path.isfile(sys.argv[2]):
-                        print('Building ' + sys.argv[2])
+                        print(f'Building [{os.path.basename(sys.argv[2])}]')
                         build(sys.argv[2])
                         exit(0)
                     else:
-                        raise FileNotFoundError(f'Input file not found at: {sys.argv[2]}')
+                        raise FileNotFoundError(f'Input file not found at [ {sys.argv[2]} ]')
         
     print('Usage for (arx)')
     print('- arx version')
+    print('- arx environment')
     print('- arx build <input.arx>')
+    print('- arx insight')
