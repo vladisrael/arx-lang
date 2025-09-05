@@ -22,8 +22,10 @@ def check_environment() -> None:
     gcc_path : Optional[str] = shutil.which('gcc')
     if (not llc_path):
         print('Make sure (llc) is installed and on your PATH.')
+        return
     if (not gcc_path):
         print('Make sure (gcc) is installed and on your PATH.')
+        return
     if (not llc_path) and (not gcc_path):
         raise EnvironmentError('Make sure (llc) and (gcc) are installed and on your PATH.')
     print('Both (llc) and (gcc) were found in PATH')
