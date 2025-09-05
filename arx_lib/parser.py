@@ -21,6 +21,7 @@ class ArtemisParser(Parser):
         return ('program', p.using_directive_list, p.function_list)
 
     # ----- USING DIRECTIVES -----
+    
     @_('USING ID') # type: ignore[name-defined]
     def using_directive(self, p) -> tuple:
         self.using_modules.append(p.ID)
@@ -35,6 +36,7 @@ class ArtemisParser(Parser):
         return [p.using_directive]
 
     # ----- FUNCTION DECLARATIONS -----
+
     @_('function function_list') # type: ignore[name-defined]
     def function_list(self, p) -> list:
         return [p.function] + p.function_list
@@ -52,6 +54,7 @@ class ArtemisParser(Parser):
         return ('function', p.ID, p.param_list, p.statements, p.type)
     
     # ----- PARAMETERS -----
+
     @_('param COMMA param_list') # type: ignore[name-defined]
     def param_list(self, p) -> list:
         return [p.param] + p.param_list
@@ -77,6 +80,7 @@ class ArtemisParser(Parser):
         return ('param', 'bool', p.ID)
 
     # ----- STATEMENTS -----
+
     @_('statements statement') # type: ignore[name-defined]
     def statements(self, p) -> list:
         return p.statements + [p.statement]
@@ -116,16 +120,19 @@ class ArtemisParser(Parser):
         return []
     
     # ----- FOR -----
+
     @_('FOR LPAREN type ID IN ID RPAREN LBRACE statements RBRACE') # type: ignore[name-defined]
     def statement(self, p) -> tuple:
         return ('for_in', p.type, p.ID0, p.ID1, p.statements)
 
     # ----- WHILE -----
+
     @_('WHILE LPAREN expression RPAREN LBRACE statements RBRACE')  # type: ignore[name-defined]
     def statement(self, p) -> tuple:
         return ('while', p.expression, p.statements)
 
     # ----- OPS -----
+
     @_('expression PLUS expression') # type: ignore[name-defined]
     def expression(self, p) -> tuple:
         return ('binop', '+', p.expression0, p.expression1)
@@ -167,6 +174,7 @@ class ArtemisParser(Parser):
         return ('binop', '<', p.expression0, p.expression1)
 
     # ----- TYPES -----
+
     @_('INT') # type: ignore[name-defined]
     def type(self, p) -> str:
         return 'int'
@@ -188,6 +196,7 @@ class ArtemisParser(Parser):
         return 'void'
     
     # ----- EXPRESSIONS -----
+
     @_('type ID ASSIGN expression') # type: ignore[name-defined]
     def statement(self, p) -> tuple:
         return ('declare', p.type, p.ID, p.expression)
@@ -240,6 +249,10 @@ class ArtemisParser(Parser):
     def expression(self, p) -> tuple:
         return ('bool', False)
     
+    @_('object_creation') # type: ignore[name-defined]
+    def expression(self, p) -> Any:
+        return p.object_creation
+
     # ----- LISTS -----
     
     @_('LBRACKET list_elements RBRACKET') # type: ignore[name-defined]
@@ -255,6 +268,7 @@ class ArtemisParser(Parser):
         return [p.expression]
 
     # ----- FUNCTION ARGUMENTS -----
+
     @_('') # type: ignore[name-defined]
     def args(self, p) -> list:
         return []
@@ -274,3 +288,34 @@ class ArtemisParser(Parser):
     @_('LPAREN expression RPAREN') # type: ignore[name-defined]
     def expression(self, p) -> list:
         return p.expression
+    
+    # ----- CLASSES -----
+
+    @_('CLASS ID LBRACE class_body RBRACE') # type: ignore[name-defined]
+    def class_declaration(self, p) -> tuple:
+        return ('class', p.ID, p.class_body)
+    
+    @_('class_member class_body') # type: ignore[name-defined]
+    def class_body(self, p) -> list:
+        return [p.class_member] + p.class_body
+
+    @_('class_member') # type: ignore[name-defined]
+    def class_body(self, p) -> list:
+        return [p.class_member]
+
+    @_('field') # type: ignore[name-defined]
+    def class_member(self, p) -> Any:
+        return p.field
+
+    @_('method') # type: ignore[name-defined]
+    def class_member(self, p) -> Any:
+        return p.method
+    
+    @_('type ID LPAREN param_list RPAREN LBRACE statements RBRACE') # type: ignore[name-defined]
+    def method(self, p) -> tuple:
+        return ('method', p.type, p.ID, p.param_list, p.statements)
+        
+    @_('ID LPAREN expr_list RPAREN') # type: ignore[name-defined]
+    def object_creation(self, p) -> tuple:
+        return ('object_creation', p.ID, p.expr_list)
+

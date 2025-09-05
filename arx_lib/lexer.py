@@ -5,7 +5,7 @@ from typing import List, Set
 class ArtemisLexer(Lexer):
     tokens : Set[str] = {
         'FLAG', 'MANAGED', 'MANUAL', 'USING',
-        'INT', 'FLOAT', 'LIST', 'STR', 'ANY', 'VOID', 'CLASS', 'SELF', 'BOOL',
+        'INT', 'FLOAT', 'LIST', 'STR', 'ANY', 'VOID', 'CLASS', 'THIS', 'BOOL',
         'TRUE', 'FALSE',
         'ID', 'NUMBER', 'FLOATNUMBER', 'STRING',
         'EQEQ', 'NOTEQ', 'LTEQ', 'GTEQ', 'LT', 'GT',
@@ -73,7 +73,7 @@ class ArtemisLexer(Lexer):
             'any' : 'ANY',
             'void' : 'VOID',
             'class' : 'CLASS',
-            'self' : 'SELF',
+            'this' : 'THIS',
             'true' : 'TRUE',
             'false' : 'FALSE',
             'return' : 'RETURN',
