@@ -2,7 +2,7 @@ from sly import Parser
 from sly.lex import Token
 from .lexer import ArtemisLexer
 from .helpers import ArtemisParserLogger
-from typing import Set, Any
+from typing import Set, Any, Optional
 
 class ArtemisParser(Parser):
     tokens : Set[str] = ArtemisLexer.tokens
@@ -16,9 +16,11 @@ class ArtemisParser(Parser):
     def __init__(self) -> None:
         self.using_modules = []
 
-    @_('using_directive_list function_list') # type: ignore[name-defined]
+    # ----- PROGRAM -----
+
+    @_('using_directive_list top_level_list')  # type: ignore[name-defined]
     def program(self, p) -> tuple:
-        return ('program', p.using_directive_list, p.function_list)
+        return ('program', p.using_directive_list, p.top_level_list)
 
     # ----- USING DIRECTIVES -----
     
@@ -35,15 +37,25 @@ class ArtemisParser(Parser):
     def using_directive_list(self, p) -> list:
         return [p.using_directive]
 
-    # ----- FUNCTION DECLARATIONS -----
+    # ----- TOP LEVEL DECLARATIONS -----
 
-    @_('function function_list') # type: ignore[name-defined]
-    def function_list(self, p) -> list:
-        return [p.function] + p.function_list
+    @_('top_level top_level_list')  # type: ignore[name-defined]
+    def top_level_list(self, p) -> list:
+        return [p.top_level] + p.top_level_list
 
-    @_('function') # type: ignore[name-defined]
-    def function_list(self, p) -> list:
-        return [p.function]
+    @_('top_level')  # type: ignore[name-defined]
+    def top_level_list(self, p) -> list:
+        return [p.top_level]
+
+    @_('function')  # type: ignore[name-defined]
+    def top_level(self, p) -> tuple:
+        return p.function
+
+    @_('class_declaration')  # type: ignore[name-defined]
+    def top_level(self, p) -> tuple:
+        return p.class_declaration
+
+    # ----- FUNCTION CALL -----
     
     @_('type ID LPAREN RPAREN LBRACE statements RBRACE') # type: ignore[name-defined]
     def function(self, p) -> tuple:
@@ -209,6 +221,14 @@ class ArtemisParser(Parser):
     def statement(self, p) -> tuple:
         return ('declare_list', p.type, p.ID, p.expression)
     
+    @_('ANY COLON ID ID ASSIGN expression') # type: ignore[name-defined]
+    def statement(self, p) -> tuple:
+        return ('declare_custom', p.ID0, p.ID1, p.expression)
+
+    @_('expression ASSIGN expression') # type: ignore[name-defined]
+    def statement(self, p) -> tuple:
+        return ('assign', p.expression0, p.expression1)
+    
     @_('BREAK') # type: ignore[name-defined]
     def statement(self, p) -> tuple:
         return ('break',)
@@ -252,6 +272,12 @@ class ArtemisParser(Parser):
     @_('object_creation') # type: ignore[name-defined]
     def expression(self, p) -> Any:
         return p.object_creation
+    
+    # ----- THIS -----
+
+    @_('THIS') # type: ignore[name-defined]
+    def expression(self, p) -> tuple:
+        return ('this',)
 
     # ----- LISTS -----
     
@@ -303,19 +329,44 @@ class ArtemisParser(Parser):
     def class_body(self, p) -> list:
         return [p.class_member]
 
-    @_('field') # type: ignore[name-defined]
-    def class_member(self, p) -> Any:
-        return p.field
-
     @_('method') # type: ignore[name-defined]
     def class_member(self, p) -> Any:
         return p.method
     
+    @_('field') # type: ignore[name-defined]
+    def class_member(self, p) -> Any:
+        return p.field
+
     @_('type ID LPAREN param_list RPAREN LBRACE statements RBRACE') # type: ignore[name-defined]
     def method(self, p) -> tuple:
         return ('method', p.type, p.ID, p.param_list, p.statements)
+    
+    @_('type ID LPAREN RPAREN LBRACE statements RBRACE') # type: ignore[name-defined]
+    def method(self, p) -> tuple:
+        return ('method', p.type, p.ID, [], p.statements)
         
-    @_('ID LPAREN expr_list RPAREN') # type: ignore[name-defined]
+    @_('ID LPAREN args RPAREN') # type: ignore[name-defined]
     def object_creation(self, p) -> tuple:
-        return ('object_creation', p.ID, p.expr_list)
+        return ('object_creation', p.ID, p.args)
 
+    @_('type ID ASSIGN expression') # type: ignore[name-defined]
+    def field(self, p) -> tuple[str, str, str, Any]:
+        return ('field', p.type, p.ID, p.expression)
+
+    @_('type ID') # type: ignore[name-defined]
+    def field(self, p) -> tuple[str, str, str, Optional[Any]]:
+        return ('field', p.type, p.ID, None)
+    
+    # ----- MEMBER ACCESS -----
+
+    @_('expression DOT ID') # type: ignore[name-defined]
+    def expression(self, p) -> tuple:
+        return ('get_attr', p.expression, p.ID)
+
+    @_('expression DOT ID LPAREN args RPAREN') # type: ignore[name-defined]
+    def expression(self, p) -> tuple:
+        return ('call_method', p.expression, p.ID, p.args)
+
+    @_('expression DOT ID LPAREN RPAREN') # type: ignore[name-defined]
+    def expression(self, p) -> tuple:
+        return ('call_method', p.expression, p.ID, [])

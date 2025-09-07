@@ -1,0 +1,28 @@
+using io
+
+class Counter {
+    int value = 0
+
+    void _init(int start) {
+        this.value = start
+    }
+
+    void increment() {
+        this.value = this.value + 1
+    }
+
+    int get_value() {
+        return this.value
+    }
+}
+
+int _exec() {
+    any:Counter c = Counter(2)
+
+    c.increment()
+    c.increment()
+
+    io.print(c.get_value()) // Expected: 12
+
+    return 0
+}

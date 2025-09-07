@@ -1,7 +1,8 @@
 using io
+using iter
 
 int _exec() {
-    list:int x = [1, 2, 3]
+    list:int x = iter.range_int(0, 5, 1)
     for (int i in x) {
         io.print(i)
         io.print('\n')

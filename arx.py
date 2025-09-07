@@ -52,14 +52,17 @@ def build(file_in:str) -> None:
 
     using_modules : tuple = [mod[1] for mod in ast[1]]
     debug_print(using_modules)
-    functions : tuple = ast[2]
+    body : tuple = ast[2]
 
     compiler : ArtemisCompiler = ArtemisCompiler(compiler_data)
     compiler.load_extern_modules(using_modules)
 
-    for fn in functions:
-        if fn[0] == 'function':
-            compiler.compile_function(fn[1], fn[2], fn[3], fn[4])
+    for section in body:
+        match section[0]:
+            case 'function':
+                compiler.compile_function(section)
+            case 'class':
+                compiler.compile_class(section)
 
     compiler.add_c_main()
 
