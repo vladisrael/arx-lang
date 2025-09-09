@@ -164,7 +164,7 @@ class ArtemisCompiler:
         if self.builder.block.terminator is None:
             raise Exception(f'Missing return in function {name}')
     
-    def compile_class(self, node: tuple) -> None:
+    def compile_class(self, node:tuple) -> None:
         _, name, body = node
         fields = [m for m in body if m[0] == 'field']
         methods = [m for m in body if m[0] == 'method']
@@ -181,11 +181,11 @@ class ArtemisCompiler:
             self.compile_method(name, method)
         self.current_class = None
 
-    def compile_this_access(self, field_name: str):
+    def compile_this_access(self, field_name:str):
         field_ptr = self.get_this_field_pointer(field_name)
         return self.builder.load(field_ptr)
 
-    def get_this_field_pointer(self, field_name: str) -> ir.GEPInstr:
+    def get_this_field_pointer(self, field_name:str) -> ir.GEPInstr:
         this_ptr = self.local_vars.get('this')
         if not this_ptr:
             raise RuntimeError('this used outside of method')
@@ -197,6 +197,30 @@ class ArtemisCompiler:
         if idx is None:
             raise NameError(f'Field {field_name} not found on {class_name}')
         return self.builder.gep(this_ptr, [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), idx)])
+
+    def get_field_pointer_general(self, obj_expression:tuple, field_name:str) -> ir.GEPInstr:
+        if obj_expression == ('this',) or (isinstance(obj_expression, tuple) and len(obj_expression) == 1 and obj_expression[0] == 'this'):
+            return self.get_this_field_pointer(field_name)
+        if isinstance(obj_expression, tuple):
+            if len(obj_expression) == 2 and obj_expression[0] == 'var':
+                variable_name = obj_expression[1]
+            else:
+                variable_name = obj_expression[0]
+        elif isinstance(obj_expression, str):
+            variable_name = obj_expression
+        else:
+            raise RuntimeError(f'Unexpected object expression for field access: {obj_expression}')
+        if variable_name not in self.variables:
+            raise NameError(f'Undefined variable (object) for field access: {variable_name}')
+        obj_pointer, obj_type = self.variables[variable_name]
+        class_name = getattr(getattr(obj_type, 'pointee', None), 'name', None)
+        if not class_name:
+            raise RuntimeError(f'Object {variable_name} does not have a valid class type')
+        fields = self.compiler_data.class_bodies[class_name]['fields']
+        idx = next((i for i, (_, _, fname, _) in enumerate(fields) if fname == field_name), None)
+        if idx is None:
+            raise NameError(f'Field {field_name} not found on {class_name}')
+        return self.builder.gep(obj_pointer, [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), idx)])
 
     def compile_method(self, class_name: str, method_node: tuple) -> None:
         _, return_type, method_name, parameters, statements = method_node
@@ -256,7 +280,6 @@ class ArtemisCompiler:
             case 'expression':
                 self.compile_expression(statement[1])
             case 'return':
-                print(statement)
                 return_value = self.compile_expression(statement[1])
                 self.builder.ret(return_value)
             case 'return_void':
@@ -415,12 +438,20 @@ class ArtemisCompiler:
                         raise NameError(f'Variable {target} is not declared')
                     pointer : ir.AllocaInstr = self.variables[target][0]
                     if pointer.type.pointee != value.type:
-                        value = self.builder.bitcast(value, pointer.type.pointee)
+                        if pointer.type.pointee.is_pointer and value.type.is_pointer:
+                            value = self.builder.bitcast(value, pointer.type.pointee)
+                        else:
+                            raise TypeError(f'Type mismatch in assignment to {target} expected {pointer.type.pointee} and got {value.type}')
                     self.safe_store(value, pointer)
-                elif target[0] == 'get_attr' and target[1][0] == 'this':
-                    field_ptr = self.get_this_field_pointer(target[2])
+                elif isinstance(target, tuple) and target[0] == 'get_attr':
+                    obj_expr = target[1]
+                    field_name = target[2]
+                    field_ptr = self.get_field_pointer_general(obj_expr, field_name)
                     if field_ptr.type.pointee != value.type:
-                        value = self.builder.bitcast(value, field_ptr.type.pointee)
+                        if field_ptr.type.pointee.is_pointer and value.type.is_pointer:
+                            value = self.builder.bitcast(value, field_ptr.type.pointee)
+                        else:
+                            raise TypeError(f'Type mismatch in assignment to field {field_name} expected {field_ptr.type.pointee} and got {value.type}')
                     self.safe_store(value, field_ptr)
                 else:
                     raise NotImplementedError(f'Assignment target {target} not implemented')
@@ -450,59 +481,55 @@ class ArtemisCompiler:
                 else:
                     func : ir.Function = self.module.globals.get(name)
                     if not func:
-                        func_type : ir.FunctionType = ir.FunctionType(int32, arg_values)
+                        func_type : ir.FunctionType = ir.FunctionType(TypeEnum.void, arg_values)
                         func : ir.Function = ir.Function(self.module, func_type, name=name)
                     return self.builder.call(func, arg_values)
             case 'call_method':
-                obj_name, method, args = expression[1], expression[2], expression[3]
-                full_name = f'{obj_name}.{method}'
-                if obj_name in self.variables:
-                    obj_pointer, obj_type = self.variables[obj_name]
+                obj_expression, method, args = expression[1], expression[2], expression[3]
+                if isinstance(obj_expression, tuple) and obj_expression[0] == 'var':
+                    obj_name = obj_expression[1]
+                    if obj_name in self.variables:
+                        obj_pointer, obj_type = self.variables[obj_name]
+                        class_name = getattr(getattr(obj_type, 'pointee', None), 'name', None)
+                        if not class_name:
+                            raise RuntimeError(f'Object {obj_name} does not have a valid class type')
+                        mangled_name: str = f'{class_name}_{method}'
+                        func = self.module.globals.get(mangled_name)
+                        if not func:
+                            raise NameError(f'Method {mangled_name} not found in module')
+                        call_args = [obj_pointer] + [self.compile_expression(arg) for arg in args]
+                        return self.builder.call(func, call_args)
+                    elif obj_name in self.extern_c:
+                        module_name = obj_name
+                        full_name = f'{module_name}.{method}'
+                        if full_name not in self.extern_functions:
+                            raise NameError(f'Extern function {full_name} not found')
+                        overloads = self.extern_functions[full_name]
+                        arg_vals = [self.compile_expression(arg) for arg in args]
+                        arg_types = tuple(ir_to_string(arg.type) for arg in arg_vals)
+                        if arg_types not in overloads:
+                            raise TypeError(f'Function {full_name} has no overload matching argument types {arg_types}')
+                        llvm_name, return_type_id = overloads[arg_types]
+                        return_type: ir.Type = string_to_ir(return_type_id)
+                        if return_type_id.startswith('list'):
+                            return_type = self.list_struct_type.as_pointer()
+                        func: Optional[ir.Function] = self.module.globals.get(llvm_name)
+                        if not func:
+                            func_type: ir.FunctionType = ir.FunctionType(return_type, [arg.type for arg in arg_vals])
+                            func = ir.Function(self.module, func_type, name=llvm_name)
+                        return self.builder.call(func, arg_vals)
+                elif obj_expression == ('this',):
+                    obj_pointer, obj_type = self.variables['this']
                     class_name = getattr(getattr(obj_type, 'pointee', None), 'name', None)
                     if not class_name:
-                        raise RuntimeError(f'Object {obj_name} does not have a valid class type')
+                        raise RuntimeError(f'\'this\' does not have a valid class type')
                     mangled_name: str = f'{class_name}_{method}'
                     func = self.module.globals.get(mangled_name)
                     if not func:
                         raise NameError(f'Method {mangled_name} not found in module')
                     call_args = [obj_pointer] + [self.compile_expression(arg) for arg in args]
                     return self.builder.call(func, call_args)
-                elif full_name in self.extern_functions:
-                    overloads = self.extern_functions[full_name]
-                    arg_vals = [self.compile_expression(arg) for arg in args]
-                    arg_types = tuple(ir_to_string(arg.type) for arg in arg_vals)
-                    if arg_types not in overloads:
-                        raise TypeError(f'Function {full_name} has no overload matching argument types {arg_types}')
-                    llvm_name, return_type_id = overloads[arg_types]
-                    return_type: ir.Type = string_to_ir(return_type_id)
-                    if return_type_id.startswith('list'):
-                        return_type = self.list_struct_type.as_pointer()
-                    func: Optional[ir.Function] = self.module.globals.get(llvm_name)
-                    if not func:
-                        func_type: ir.FunctionType = ir.FunctionType(return_type, [arg.type for arg in arg_vals])
-                        func = ir.Function(self.module, func_type, name=llvm_name)
-                    return self.builder.call(func, arg_vals)
-                else:
-                    raise NameError(f'Undefined object or module: {obj_name}')
-            case 'call_method_':
-                obj, method, args = expression[1], expression[2], expression[3]
-                full_name = f'{obj}.{method}'
-                if full_name not in self.extern_functions:
-                    raise NameError(f'Function {full_name} not found in extern functions')
-                overloads = self.extern_functions[full_name]
-                arg_vals = [self.compile_expression(arg) for arg in args]
-                arg_types = tuple(ir_to_string(arg.type) for arg in arg_vals)
-                if arg_types not in overloads:
-                    raise TypeError(f'Function {full_name} has no overload matching argument types {arg_types}')
-                llvm_name, return_type_id = overloads[arg_types]
-                return_type : ir.Type = string_to_ir(return_type_id)
-                if return_type_id.startswith('list'):
-                    return_type : ir.Type = self.list_struct_type.as_pointer()
-                func : Optional[ir.Function] = self.module.globals.get(llvm_name)
-                if not func:
-                    func_type : ir.FunctionType = ir.FunctionType(return_type, [arg.type for arg in arg_vals])
-                    func = ir.Function(self.module, func_type, name=llvm_name)
-                return self.builder.call(func, arg_vals)
+                raise NameError(f'Undefined object or module: {obj_expression}')
             case 'int':
                 return ir.Constant(TypeEnum.int32, expression[1])
             case 'float':
@@ -588,18 +615,54 @@ class ArtemisCompiler:
                     self.builder.call(ctor, [obj_pointer] + arg_values)
                 return obj_pointer
             case 'get_attr':
-                obj_expr, field_name = expression[1], expression[2]
-                if obj_expr == ('this',):
+                obj_expression, field_name = expression[1], expression[2]
+                if obj_expression == ('this',):
                     return self.compile_this_access(field_name)
-                else:
-                    obj_pointer, obj_type = self.variables[obj_expr[0]]
+                if isinstance(obj_expression, tuple) and obj_expression[0] == 'var':
+                    obj_name = obj_expression[1]
+                    obj_pointer, obj_type = self.variables[obj_name]
                     class_name = getattr(getattr(obj_type, 'pointee', None), 'name', None)
                     if not class_name:
-                        raise RuntimeError(f'Object {obj_expr} does not have a valid class type')
-                    struct_type = self.compiler_data.class_bodies[class_name]['struct']
-                    idx = next(i for i, f in enumerate(self.compiler_data.class_bodies[class_name]['fields']) if f[2] == field_name)
-                    field_ptr = self.builder.gep(obj_pointer, [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), idx)])
-                    return self.builder.load(field_ptr)
+                        raise RuntimeError(f'Object {obj_name} does not have a valid class type')
+                    field_pointer: ir.GEPInstr = self.get_field_pointer_general(obj_expression, field_name)
+                    return self.builder.load(field_pointer)
+                raise RuntimeError(f'Unsupported attribute access on {obj_expression}')
+            case 'postinc' | 'postdec':
+                op : str = kind
+                target_expression = expression[1]
+
+                def resolve_pointer_and_type(t_expr:Union[tuple, str]):
+                    if isinstance(t_expr, tuple) and t_expr[0] == 'var':
+                        vname = t_expr[1]
+                        if vname not in self.variables:
+                            raise NameError(f'Undefined variable: {vname}')
+                        return self.variables[vname][0]
+                    if isinstance(t_expr, tuple) and len(t_expr) == 1:
+                        vname = t_expr[0]
+                        if vname in self.variables:
+                            return self.variables[vname][0]
+                    if isinstance(t_expr, tuple) and t_expr[0] == 'get_attr':
+                        obj_expr = t_expr[1]
+                        field_name = t_expr[2]
+                        return self.get_field_pointer_general(obj_expr, field_name)
+                    if isinstance(t_expr, str):
+                        if t_expr in self.variables:
+                            return self.variables[t_expr][0]
+                    raise NotImplementedError(f'Unsupported target for ++/--: {t_expr}')
+                
+                pointer = resolve_pointer_and_type(target_expression)
+                cur = self.builder.load(pointer)
+                if not isinstance(cur.type, ir.IntType):
+                    raise TypeError('++/-- supported only on integer types for now')
+
+                one : ir.Constant = ir.Constant(cur.type, 1)
+                match op:
+                    case 'postinc':
+                        new = self.builder.add(cur, one)
+                    case 'postdec':
+                        new = self.builder.sub(cur, one)
+                self.builder.store(new, pointer)
+                return cur
             case _:
                 raise NotImplementedError(f'Expresion kind {kind} not implemented')
 

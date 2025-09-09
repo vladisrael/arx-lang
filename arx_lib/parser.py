@@ -143,6 +143,16 @@ class ArtemisParser(Parser):
     def statement(self, p) -> tuple:
         return ('while', p.expression, p.statements)
 
+    # ----- ADD / SUBSTRACT -----
+
+    @_('expression PLUSPLUS')    # type: ignore[name-defined]
+    def expression(self, p) -> tuple:
+        return ('postinc', p.expression)
+
+    @_('expression MINUSMINUS')  # type: ignore[name-defined]
+    def expression(self, p) -> tuple:
+        return ('postdec', p.expression)
+
     # ----- OPS -----
 
     @_('expression PLUS expression') # type: ignore[name-defined]
@@ -237,18 +247,6 @@ class ArtemisParser(Parser):
     def statement(self, p) -> tuple:
         return ('continue',)
 
-    @_('function_call') # type: ignore[name-defined]
-    def expression(self, p) -> Any:
-        return p.function_call
-
-    @_('ID DOT ID LPAREN args RPAREN') # type: ignore[name-defined]
-    def function_call(self, p) -> tuple:
-        return ('call_method', p.ID0, p.ID1, p.args)
-
-    @_('ID LPAREN args RPAREN') # type: ignore[name-defined]
-    def function_call(self, p) -> tuple:
-        return ('call', p.ID, p.args)
-
     @_('STRING') # type: ignore[name-defined]
     def expression(self, p) -> tuple:
         return ('string', p.STRING)
@@ -315,6 +313,16 @@ class ArtemisParser(Parser):
     def expression(self, p) -> list:
         return p.expression
     
+    # ----- FUNCTION CALL -----
+
+    @_('ID LPAREN args RPAREN') # type: ignore[name-defined]
+    def expression(self, p) -> tuple:
+        return ('call', p.ID, p.args)
+
+    @_('ID LPAREN RPAREN') # type: ignore[name-defined]
+    def expression(self, p) -> tuple:
+        return ('call', p.ID, [])
+    
     # ----- CLASSES -----
 
     @_('CLASS ID LBRACE class_body RBRACE') # type: ignore[name-defined]
@@ -356,7 +364,7 @@ class ArtemisParser(Parser):
     @_('type ID') # type: ignore[name-defined]
     def field(self, p) -> tuple[str, str, str, Optional[Any]]:
         return ('field', p.type, p.ID, None)
-    
+
     # ----- MEMBER ACCESS -----
 
     @_('expression DOT ID') # type: ignore[name-defined]

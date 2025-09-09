@@ -9,7 +9,7 @@ class ArtemisLexer(Lexer):
         'TRUE', 'FALSE',
         'ID', 'NUMBER', 'FLOATNUMBER', 'STRING',
         'EQEQ', 'NOTEQ', 'LTEQ', 'GTEQ', 'LT', 'GT',
-        'PLUS', 'MINUS', 'TIMES', 'DIVIDE',
+        'PLUSPLUS', 'MINUSMINUS', 'PLUS', 'MINUS', 'TIMES', 'DIVIDE',
         'ASSIGN', 'COLON', 'COMMA', 'IF', 'ELSE', 'WHILE', 'FOR', 'IN', 'BREAK', 'CONTINUE',
         'LBRACE', 'RBRACE', 'LPAREN', 'RPAREN', 'LBRACKET', 'RBRACKET', 'DOT', 'RETURN',
     }
@@ -29,6 +29,8 @@ class ArtemisLexer(Lexer):
     GTEQ  : str = r'>='
     LT    : str   = r'<'
     GT    : str   = r'>'
+    PLUSPLUS   : str = r'\+\+'
+    MINUSMINUS : str = r'--'
     PLUS  : str = r'\+'
     MINUS : str = r'-'
     TIMES : str = r'\*'

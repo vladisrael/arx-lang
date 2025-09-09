@@ -8,11 +8,7 @@ class Counter {
     }
 
     void increment() {
-        this.value = this.value + 1
-    }
-
-    int get_value() {
-        return this.value
+        this.value++
     }
 }
 
@@ -20,9 +16,7 @@ int _exec() {
     any:Counter c = Counter(2)
 
     c.increment()
-    c.increment()
-
-    io.print(c.get_value()) // Expected: 12
+    io.print(c.value)
 
     return 0
 }
