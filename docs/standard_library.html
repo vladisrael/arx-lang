@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang='en'>
+
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+
+    <link rel='stylesheet' href='style.css' />
+    <link rel='icon' href='../arx-path.svg' />
+    <title>ARX Language</title>
+</head>
+
+<body>
+    <header>Artemis Language Docs</header>
+    <nav>
+        <a href='index.html'>Home</a>
+        <a href='getting_started.html'>Getting Started</a>
+        <a href='language_reference.html'>Language Reference</a>
+        <a href='standard_library.html'>Standard Library</a>
+        <a href='examples.html'>Examples</a>
+    </nav>
+    <main>
+        <h1>ARX Standard Library</h1>
+        <p>
+            Not much for now.
+        </p>
+        <h2>Input Output (io)</h2>
+        <pre>
+            <code>
+using io
+
+int _exec() {
+    string name = io.input('What is your name? ')
+    io.print('Hi there ' + name + '\n')
+    int x = io.input_integer('Enter an integer.. ')
+    x++
+    io.print(x)
+    return 0
+}
+            </code>
+        </pre>
+        <h2>Iterables (iter)</h2>
+        <pre>
+            <code>
+using io
+using iter
+
+int _exec() {
+    list:int x = iter.range_int(0, 10, 1) // START END STEP
+    for (int i in x) {
+        io.print(i)
+        io.print('\n')
+    }
+    return 0
+}
+            </code>
+        </pre>
+    </main>
+</body>
+
+</html>

@@ -2,7 +2,7 @@ using io
 
 int _exec() {
     int num = io.input_integer('> ')
-    num++
+    num--
     io.print(num)
     return 0
 }

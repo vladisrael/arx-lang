@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang='en'>
+
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+
+    <link rel='stylesheet' href='style.css' />
+    <link rel='icon' href='../arx-path.svg' />
+    <title>ARX Language</title>
+</head>
+
+<body>
+    <header>Artemis Language Docs</header>
+    <nav>
+        <a href='index.html'>Home</a>
+        <a href='getting_started.html'>Getting Started</a>
+        <a href='language_reference.html'>Language Reference</a>
+        <a href='standard_library.html'>Standard Library</a>
+        <a href='examples.html'>Examples</a>
+    </nav>
+    <main>
+        <h1>ARX Setup</h1>
+        <p>
+            Tested on Linux platform with Python 3.13.7
+        </p>
+        <h2>Start</h2>
+        <p>
+            Clone the repository with <code class='inline-code'>git clone https://github.com/vladimir-sama/arx-lang.git</code>
+        </p>
+        <p>
+            Install <code class='inline-code'>gcc</code> & <code class='inline-code'>llvm</code> 
+            or use <code class='inline-code'>python arx.py install</code> if you have <code class='inline-code'>chocolatey</code> in Windows.
+        </p>
+        <p>
+            Run <code class='inline-code'>pip install -r requirements.txt</code> or in a virtual environment if on Linux.
+        </p>
+        <h2>Usage</h2>
+        <p>
+            Run <code class='inline-code'>python arx.py build hello_world.arx</code> 
+            where <code class='inline-code'>hello_world.arx</code> is the Artemis code file you want to compile.
+        </p>
+    </main>
+</body>
+
+</html>

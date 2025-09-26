@@ -1,0 +1,11 @@
+using io
+
+int _exec() {
+    int i = 0
+    while (i < 10) {
+        i++
+        io.print(i)
+        io.print('\n')
+    }
+    return 0
+}

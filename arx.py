@@ -1,9 +1,9 @@
 from arx_lib.helpers import debug_print
 from arx_lib.builder import build
 
-version_string : str = '[2025.09.11]'
+version_string : str = '[2025.09.26]'
 
-import os, sys, subprocess, shutil, platform
+import os, sys, subprocess, shutil, platform, webbrowser
 from typing import Optional
 
 is_windows : bool = os.name == 'nt'
@@ -38,6 +38,9 @@ if __name__ == '__main__':
                 print(version_string)
                 print('Python', platform.python_version())
                 exit(0)
+            case 'site':
+                webbrowser.open_new_tab('https://vladimir-sama.github.io/arx-lang/')
+                exit(0)
             case 'insight':
                 tokei_path : Optional[str] = shutil.which('tokei')
                 if (not tokei_path):
@@ -62,8 +65,6 @@ if __name__ == '__main__':
                         raise EnvironmentError('Make sure (choco) is installed and on your PATH.')
                     subprocess.run([chocolatey_path, 'install', 'llvm', '-y'], check=True)
                     subprocess.run([chocolatey_path, 'install', 'mingw', '-y'], check=True)
-                    subprocess.run([sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip'], check=True)
-                    subprocess.run([sys.executable, '-m', 'pip', 'install', '-r', os.path.abspath('requirements.txt')], check=True)
                     print('Windows install success')
                 else:
                     print('Linux not implemented')

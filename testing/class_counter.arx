@@ -13,7 +13,7 @@ class Counter {
 }
 
 int _exec() {
-    any:Counter c = Counter(2)
+    any:Counter c = Counter(69)
 
     c.increment()
     io.print(c.value)
