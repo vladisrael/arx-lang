@@ -5,9 +5,27 @@ import shutil
 import os
 import sys
 import re
+from .helpers import debug_print, arx_extension
 from .data_classes import ArtemisData, TypeEnum
 from .converters import ir_to_string, string_to_ir
-from typing import Union, List, Tuple, Set, Dict, Optional, ItemsView, Any, Iterator, Iterable
+from .lexer import ArtemisLexer
+from .parser import ArtemisParser
+from typing import Union, Optional, ItemsView, Any, Iterator, Iterable
+
+def parse_file(file_in: str) -> tuple:
+    with open(file_in) as f:
+        file_contents = f.read()
+    lexer : ArtemisLexer = ArtemisLexer()
+    parser : ArtemisParser = ArtemisParser()
+
+    tokens : list = list(lexer.tokenize(file_contents))
+    debug_print(tokens)
+
+    ast : tuple = parser.parse(iter(tokens))
+    if not ast:
+        raise RuntimeError('Parsing failed')
+    debug_print(ast)
+    return ast
 
 def parse_function_overloads(items:ItemsView[str, str], module_name: str) -> dict:
     externs: dict = {}
@@ -34,22 +52,21 @@ class ArtemisCompiler:
         self.module.triple = binding.get_default_triple()
         self.target : binding.Target = binding.Target.from_default_triple()
         self.target_machine : binding.TargetMachine = self.target.create_target_machine()
-        llvm_ir : str = str(self.module)
-        binding_module : binding.ModuleRef = binding.parse_assembly(llvm_ir)
-        binding_module.verify()
         self.builder : Optional[ir.IRBuilder] = None
         self.func : Optional[ir.Function] = None
         self.compiler_data: ArtemisData = compiler_data
-        self.variables : Dict[str, Tuple[ir.AllocaInstr, ir.Type]] = {}
-        self.local_vars: Dict[str, ir.AllocaInstr] = {}
-        self.loop_continue_stack: List[ir.Block] = []
-        self.loop_break_stack: List[ir.Block] = []
+        self.variables : dict[str, tuple[ir.AllocaInstr, ir.Type]] = {}
+        self.local_vars: dict[str, ir.AllocaInstr] = {}
+        self.loop_continue_stack: list[ir.Block] = []
+        self.loop_break_stack: list[ir.Block] = []
         self.loop_counter : int = 0
         self.function_counter : int = 0
         self.if_counter : int = 0
         self.get_abi_counter : int = 0
-        self.extern_c: List[str] = []
-        self.extern_functions: Dict[str, dict] = {}
+        self.extern_c: set[str] = set()
+        self.extern_functions: dict[str, dict] = {}
+        self.extern_modules: dict[str, ir.Module] = {}
+        self.extern_modules_namespace: dict[str, dict[str, str]] = {}
 
     def get_abi_size_from_ir_type(self, ir_type: ir.Type) -> int:
         if isinstance(ir_type, ir.IntType):
@@ -96,28 +113,28 @@ class ArtemisCompiler:
             self.safe_store(element_value, element_address)
         return heap_pointer
 
-    def load_extern_modules(self, using_modules: List[str]) -> None:
+    def load_externs_c(self, using_externs: list[str]) -> None:
         for path in self.compiler_data.map_paths:
             map_files = glob.glob(os.path.join(path, '*.map'))
             for map_file in map_files:
                 cfg : configparser.RawConfigParser = configparser.RawConfigParser(delimiters=('='))
                 cfg.read(map_file)
                 module_name : str = cfg['meta']['name']
-                if module_name != 'core' and module_name not in using_modules:
+                if (module_name != 'core') and (module_name not in using_externs):
                     continue
-                self.extern_c.append(module_name)
+                self.extern_c.add(module_name)
                 externs : dict = parse_function_overloads(cfg['functions'].items(), module_name)
                 for full_name, overloads in externs.items():
                     self.extern_functions.setdefault(full_name, {}).update(overloads)
-        self.list_struct_type : ir.IdentifiedStructType = ir.global_context.get_identified_type('List')
-        self.list_struct_type.set_body(
-            TypeEnum.int8.as_pointer(),
-            TypeEnum.int32,
-            TypeEnum.int32,
-            TypeEnum.int64,
-            TypeEnum.boolean
-        )
     
+    def load_using(self, using_list: set[str], search_dir: str) -> None:
+        arx_using : set[str] = { arx_file for arx_file in using_list if os.path.exists(os.path.join(search_dir, arx_file + arx_extension)) }
+        c_using : set[str] = using_list.difference(arx_using)
+        for arx_module in arx_using:
+            sub_c, sub_module = self.compile_sub(arx_module, search_dir)
+            self.extern_c.update(sub_c)
+        self.load_externs_c(c_using)
+
     def declare_malloc(self) -> ir.Function:
         malloc_ty : ir.FunctionType = ir.FunctionType(TypeEnum.int8.as_pointer(), [TypeEnum.int64])
         malloc_fn : ir.Function = self.module.globals.get('malloc')
@@ -145,7 +162,7 @@ class ArtemisCompiler:
 
     def compile_function(self, node:tuple):
         _, name, parameters, statements, return_type = node
-        arg_types : List[ir.Type] = [string_to_ir(parameter_type) for _id, parameter_type, _name in parameters]
+        arg_types : list[ir.Type] = [string_to_ir(parameter_type) for _id, parameter_type, _name in parameters]
         func_type : ir.FunctionType = ir.FunctionType(string_to_ir(return_type), arg_types)
         self.func : ir.Function = ir.Function(self.module, func_type, name=name)
         block : ir.Block = self.func.append_basic_block(f'entry_{self.function_counter}')
@@ -180,6 +197,95 @@ class ArtemisCompiler:
         for method in methods:
             self.compile_method(name, method)
         self.current_class = None
+
+    def compile_sub(self, sub_module:str, search_dir:str) -> tuple[set[str], ir.Module]:
+        if sub_module in self.extern_modules:
+            return (self.extern_c, self.extern_modules[sub_module])
+        
+        sub_compiler : ArtemisCompiler = ArtemisCompiler(self.compiler_data)
+        
+        ast : tuple = parse_file(os.path.join(search_dir, sub_module + arx_extension))
+
+        using_modules : set[str] = {mod[1] for mod in ast[1]}
+        debug_print(using_modules)
+        body : tuple = ast[2]
+            
+        sub_compiler.load_using(using_modules, search_dir)
+        for section in body:
+            match section[0]:
+                case 'function':
+                    sub_compiler.compile_function(section)
+                case 'class':
+                    sub_compiler.compile_class(section)
+
+        namespace_map : dict[str, str] = {}
+        self.extern_c.update(sub_compiler.extern_c)
+
+        for unmangled_name, global_value in list(sub_compiler.module.globals.items()):
+            mangled_name : str = f'{sub_module}_{unmangled_name}'
+            is_c : bool = False
+            for c_lib in [f'{c}_' for c in self.extern_c]:
+                if unmangled_name.startswith(c_lib):
+                    is_c = True
+            if is_c:
+                continue
+            
+            global_value.name = mangled_name
+            sub_compiler.module.globals[mangled_name] = sub_compiler.module.globals.pop(unmangled_name)
+            namespace_map[unmangled_name] = mangled_name
+
+        self.extern_modules_namespace[sub_module] = namespace_map
+        self.extern_modules[sub_module] = sub_compiler.module
+        return (sub_compiler.extern_c, sub_compiler.module)
+
+    def compile_exec(self, file_in:str) -> str:
+        ast : tuple = parse_file(file_in)
+
+        using_modules : set = {mod[1] for mod in ast[1]}
+        debug_print(using_modules)
+        body : tuple = ast[2]
+            
+        self.load_using(using_modules, os.path.dirname(file_in))
+        for section in body:
+            match section[0]:
+                case 'function':
+                    self.compile_function(section)
+                case 'class':
+                    self.compile_class(section)
+        
+        self.add_c_main()
+
+        exec_module_lines : list[str] = str(self.module).splitlines()
+
+        final_ir_lines : list[str] = []
+
+        declare_set : set[str] = set()
+        for line in exec_module_lines:
+            if not line.startswith('; ModuleID'):
+                final_ir_lines.append(line)
+            if line.startswith('declare'):
+                declare_set.add(line)
+
+        for sub_name, sub_module in self.extern_modules.items():
+            sub_ir_lines = str(sub_module).splitlines()
+            for line in sub_ir_lines:
+                if line.startswith('; ModuleID') or line.startswith('target triple') or line.startswith('target datalayout'):
+                    continue
+                if line.startswith('declare'):
+                    if line in declare_set:
+                        continue
+                    declare_set.add(line)
+                for unmangled_name, mangled_name in self.extern_modules_namespace[sub_name].items():
+                    line = line.replace(f'@{unmangled_name}', f'@{mangled_name}')
+                final_ir_lines.append(line)
+
+        exec_module : str = '\n'.join(final_ir_lines)
+
+        exec_binding : binding.ModuleRef = binding.parse_assembly(exec_module)
+
+        exec_binding.verify()
+        return str(exec_binding)
+    
 
     def compile_this_access(self, field_name:str):
         field_ptr = self.get_this_field_pointer(field_name)
@@ -499,7 +605,7 @@ class ArtemisCompiler:
                             raise NameError(f'Method {mangled_name} not found in module')
                         call_args = [obj_pointer] + [self.compile_expression(arg) for arg in args]
                         return self.builder.call(func, call_args)
-                    elif obj_name in self.extern_c:
+                    elif (obj_name in self.extern_c):
                         module_name = obj_name
                         full_name = f'{module_name}.{method}'
                         if full_name not in self.extern_functions:
@@ -518,6 +624,14 @@ class ArtemisCompiler:
                             func_type: ir.FunctionType = ir.FunctionType(return_type, [arg.type for arg in arg_vals])
                             func = ir.Function(self.module, func_type, name=llvm_name)
                         return self.builder.call(func, arg_vals)
+                    elif obj_name in self.extern_modules.keys():
+                        module : ir.Module = self.extern_modules[obj_name]
+                        mangled_name : str = f'{obj_name}_{method}'
+                        func: Optional[ir.Function] = module.globals.get(mangled_name)
+                        if not func:
+                            raise NameError(f'Method {mangled_name} not found in module {obj_name}')
+                        call_args = [self.compile_expression(arg) for arg in args]
+                        return self.builder.call(func, call_args)
                 elif obj_expression == ('this',):
                     obj_pointer, obj_type = self.variables['this']
                     class_name = getattr(getattr(obj_type, 'pointee', None), 'name', None)

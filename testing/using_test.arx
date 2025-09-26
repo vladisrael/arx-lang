@@ -1,0 +1,9 @@
+using io
+using fibonacci
+
+int _exec() {
+    int n = io.input_integer('> ')
+    int r = fibonacci.fib(n)
+    io.print(r)
+    return 0
+}
