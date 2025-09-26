@@ -201,15 +201,12 @@ class ArtemisCompiler:
     def compile_sub(self, sub_module:str, search_dir:str) -> tuple[set[str], ir.Module]:
         if sub_module in self.extern_modules:
             return (self.extern_c, self.extern_modules[sub_module])
-        
         sub_compiler : ArtemisCompiler = ArtemisCompiler(self.compiler_data)
         
         ast : tuple = parse_file(os.path.join(search_dir, sub_module + arx_extension))
-
         using_modules : set[str] = {mod[1] for mod in ast[1]}
         debug_print(using_modules)
         body : tuple = ast[2]
-            
         sub_compiler.load_using(using_modules, search_dir)
         for section in body:
             match section[0]:
@@ -220,7 +217,6 @@ class ArtemisCompiler:
 
         namespace_map : dict[str, str] = {}
         self.extern_c.update(sub_compiler.extern_c)
-
         for unmangled_name, global_value in list(sub_compiler.module.globals.items()):
             mangled_name : str = f'{sub_module}_{unmangled_name}'
             is_c : bool = False
@@ -229,18 +225,15 @@ class ArtemisCompiler:
                     is_c = True
             if is_c:
                 continue
-            
             global_value.name = mangled_name
             sub_compiler.module.globals[mangled_name] = sub_compiler.module.globals.pop(unmangled_name)
             namespace_map[unmangled_name] = mangled_name
-
         self.extern_modules_namespace[sub_module] = namespace_map
         self.extern_modules[sub_module] = sub_compiler.module
         return (sub_compiler.extern_c, sub_compiler.module)
 
     def compile_exec(self, file_in:str) -> str:
         ast : tuple = parse_file(file_in)
-
         using_modules : set = {mod[1] for mod in ast[1]}
         debug_print(using_modules)
         body : tuple = ast[2]
@@ -252,20 +245,15 @@ class ArtemisCompiler:
                     self.compile_function(section)
                 case 'class':
                     self.compile_class(section)
-        
         self.add_c_main()
-
         exec_module_lines : list[str] = str(self.module).splitlines()
-
         final_ir_lines : list[str] = []
-
         declare_set : set[str] = set()
         for line in exec_module_lines:
             if not line.startswith('; ModuleID'):
                 final_ir_lines.append(line)
             if line.startswith('declare'):
                 declare_set.add(line)
-
         for sub_name, sub_module in self.extern_modules.items():
             sub_ir_lines = str(sub_module).splitlines()
             for line in sub_ir_lines:
@@ -278,14 +266,10 @@ class ArtemisCompiler:
                 for unmangled_name, mangled_name in self.extern_modules_namespace[sub_name].items():
                     line = line.replace(f'@{unmangled_name}', f'@{mangled_name}')
                 final_ir_lines.append(line)
-
         exec_module : str = '\n'.join(final_ir_lines)
-
         exec_binding : binding.ModuleRef = binding.parse_assembly(exec_module)
-
         exec_binding.verify()
         return str(exec_binding)
-    
 
     def compile_this_access(self, field_name:str):
         field_ptr = self.get_this_field_pointer(field_name)

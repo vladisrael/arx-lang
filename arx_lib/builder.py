@@ -10,17 +10,11 @@ from typing import List, Tuple, Set, Dict, Optional
 is_windows : bool = os.name == 'nt'
 
 def build(file_in:str, executable_dir:str) -> None:
-    with open(file_in) as f:
-        file_contents : str = f.read()
-
     map_paths : Set[str] = set()
     map_paths.add(os.path.join(executable_dir, 'c_map'))
-
     compiler_data : ArtemisData = ArtemisData(map_paths)
-
     compiler : ArtemisCompiler = ArtemisCompiler(compiler_data)
     module : str = compiler.compile_exec(file_in)
-
 
     llc_path : Optional[str] = shutil.which('llc')
     gcc_path : Optional[str] = shutil.which('gcc')
