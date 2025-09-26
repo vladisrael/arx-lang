@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="240pt" src="./arx-path.svg">
+  <img width="240pt" src="./docs/arx-path.svg">
 </p>
 
 # ARX
