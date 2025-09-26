@@ -1,9 +1,9 @@
 using io
-using fibonacci
+using fib_lib
 
 int _exec() {
     int n = io.input_integer('> ')
-    int r = fibonacci.fib(n)
+    int r = fib_lib.fib(n)
     io.print(r)
     return 0
 }

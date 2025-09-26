@@ -17,10 +17,8 @@ def parse_file(file_in: str) -> tuple:
         file_contents = f.read()
     lexer : ArtemisLexer = ArtemisLexer()
     parser : ArtemisParser = ArtemisParser()
-
     tokens : list = list(lexer.tokenize(file_contents))
     debug_print(tokens)
-
     ast : tuple = parser.parse(iter(tokens))
     if not ast:
         raise RuntimeError('Parsing failed')
@@ -202,7 +200,6 @@ class ArtemisCompiler:
         if sub_module in self.extern_modules:
             return (self.extern_c, self.extern_modules[sub_module])
         sub_compiler : ArtemisCompiler = ArtemisCompiler(self.compiler_data)
-        
         ast : tuple = parse_file(os.path.join(search_dir, sub_module + arx_extension))
         using_modules : set[str] = {mod[1] for mod in ast[1]}
         debug_print(using_modules)
@@ -214,7 +211,6 @@ class ArtemisCompiler:
                     sub_compiler.compile_function(section)
                 case 'class':
                     sub_compiler.compile_class(section)
-
         namespace_map : dict[str, str] = {}
         self.extern_c.update(sub_compiler.extern_c)
         for unmangled_name, global_value in list(sub_compiler.module.globals.items()):
@@ -237,7 +233,6 @@ class ArtemisCompiler:
         using_modules : set = {mod[1] for mod in ast[1]}
         debug_print(using_modules)
         body : tuple = ast[2]
-            
         self.load_using(using_modules, os.path.dirname(file_in))
         for section in body:
             match section[0]:

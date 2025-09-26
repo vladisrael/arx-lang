@@ -1,10 +1,9 @@
 from sly import Lexer
 from sly.lex import Token
-from typing import List, Set
 
 class ArtemisLexer(Lexer):
-    tokens : Set[str] = {
-        'FLAG', 'MANAGED', 'MANUAL', 'USING',
+    tokens : set[str] = {
+        'USING',
         'INT', 'FLOAT', 'LIST', 'STR', 'ANY', 'VOID', 'CLASS', 'THIS', 'BOOL',
         'TRUE', 'FALSE',
         'ID', 'NUMBER', 'FLOATNUMBER', 'STRING',
@@ -66,9 +65,6 @@ class ArtemisLexer(Lexer):
     ID : str = r'[a-zA-Z_][a-zA-Z0-9_]*'
     def ID(self, token:Token) -> Token:
         keywords = {
-            'flag' : 'FLAG',
-            'managed' : 'MANAGED',
-            'manual' : 'MANUAL',
             'using' : 'USING',
             'string' : 'STR',
             'list' : 'LIST',

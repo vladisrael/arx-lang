@@ -2,10 +2,10 @@ from sly import Parser
 from sly.lex import Token
 from .lexer import ArtemisLexer
 from .helpers import ArtemisParserLogger
-from typing import Set, Any, Optional
+from typing import Any, Optional
 
 class ArtemisParser(Parser):
-    tokens : Set[str] = ArtemisLexer.tokens
+    tokens : set[str] = ArtemisLexer.tokens
     log : ArtemisParserLogger = ArtemisParserLogger()
 
     precedence : tuple = (
@@ -21,6 +21,11 @@ class ArtemisParser(Parser):
     @_('using_directive_list top_level_list')  # type: ignore[name-defined]
     def program(self, p) -> tuple:
         return ('program', p.using_directive_list, p.top_level_list)
+    
+
+    @_('top_level_list')  # type: ignore[name-defined]
+    def program(self, p) -> tuple:
+        return ('program', [], p.top_level_list)
 
     # ----- USING DIRECTIVES -----
     
