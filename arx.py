@@ -15,20 +15,6 @@ if getattr(sys, 'frozen', False):
     executable_dir = os.path.dirname(sys.executable)
 os.chdir(executable_dir)
 
-def check_environment() -> None:
-    llc_path : Optional[str] = shutil.which('llc')
-    gcc_path : Optional[str] = shutil.which('gcc')
-    if (not llc_path):
-        print('Make sure (llc) is installed and on your PATH.')
-        return
-    if (not gcc_path):
-        print('Make sure (gcc) is installed and on your PATH.')
-        return
-    if (not llc_path) and (not gcc_path):
-        raise EnvironmentError('Make sure (llc) and (gcc) are installed and on your PATH.')
-    print('Both (llc) and (gcc) were found in PATH')
-
-
 if __name__ == '__main__':
     print('Artemis (ARX)')
     print('(Vendetta-chan Studios) 2025')
@@ -47,9 +33,6 @@ if __name__ == '__main__':
                     raise EnvironmentError('Make sure (tokei) is installed and on your PATH.')
                 subprocess.run([tokei_path, file_dir])
                 exit(0)
-            case 'environment':
-                check_environment()
-                exit(0)
             case 'build':
                 if len(sys.argv) > 2:
                     if os.path.isfile(sys.argv[2]):
@@ -58,21 +41,8 @@ if __name__ == '__main__':
                         exit(0)
                     else:
                         raise FileNotFoundError(f'Input file not found at [ {sys.argv[2]} ]')
-            case 'install':
-                if is_windows:
-                    chocolatey_path : Optional[str] = shutil.which('choco')
-                    if (not chocolatey_path):
-                        raise EnvironmentError('Make sure (choco) is installed and on your PATH.')
-                    subprocess.run([chocolatey_path, 'install', 'llvm', '-y'], check=True)
-                    subprocess.run([chocolatey_path, 'install', 'mingw', '-y'], check=True)
-                    print('Windows install success')
-                else:
-                    print('Linux not implemented')
-                exit(0)
         
     print('Usage for (arx)')
     print('- arx version')
-    print('- arx environment')
-    print('- arx install')
     print('- arx build <input.arx>')
     print('- arx insight')
