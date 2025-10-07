@@ -680,8 +680,20 @@ class ArtemisCompiler:
                         return self.builder.mul(left_value, right_value)
                     case '/':
                         return self.builder.sdiv(left_value, right_value)  # signed division
+                    case 'and':
+                        return self.builder.and_(left_value, right_value)
+                    case 'or':
+                        return self.builder.or_(left_value, right_value)
                     case _:
                         raise NotImplementedError(f'Unsupported operator: {operator}')
+            case 'unop':
+                operator, expr = expression[1], expression[2]
+                value = self.compile_expression(expr)
+                match operator:
+                    case 'not':
+                        return self.builder.xor(value, ir.Constant(TypeEnum.boolean, 1))
+                    case _:
+                        raise NotImplementedError(f'Unsupported unary operator: {operator}')
             case 'var':
                 var_name : str = expression[1]
                 if var_name in self.local_vars:

@@ -5,7 +5,7 @@ class ArtemisLexer(Lexer):
     tokens : set[str] = {
         'USING',
         'INT', 'FLOAT', 'LIST', 'STR', 'ANY', 'VOID', 'CLASS', 'THIS', 'BOOL',
-        'TRUE', 'FALSE',
+        'TRUE', 'FALSE', 'NOT', 'OR', 'AND',
         'ID', 'NUMBER', 'FLOATNUMBER', 'STRING',
         'EQEQ', 'NOTEQ', 'LTEQ', 'GTEQ', 'LT', 'GT',
         'PLUSPLUS', 'MINUSMINUS', 'PLUS', 'MINUS', 'TIMES', 'DIVIDE',
@@ -82,7 +82,10 @@ class ArtemisLexer(Lexer):
             'for' : 'FOR',
             'in' : 'IN',
             'break' : 'BREAK',
-            'continue' : 'CONTINUE'
+            'continue' : 'CONTINUE',
+            'not' : 'NOT',
+            'and' : 'AND',
+            'or' : 'OR'
         }
         token.type = keywords.get(token.value, 'ID')
         return token

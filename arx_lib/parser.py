@@ -12,6 +12,14 @@ class ArtemisParser(Parser):
         ('left', 'PLUS', 'MINUS'),
         ('left', 'TIMES', 'DIVIDE'),
     )
+    precedence : tuple = (
+        ('left', 'OR'),
+        ('left', 'AND'),
+        ('right', 'NOT'),
+        ('nonassoc', 'EQEQ', 'NOTEQ', 'LTEQ', 'GTEQ', 'LT', 'GT'),
+        ('left', 'PLUS', 'MINUS'),
+        ('left', 'TIMES', 'DIVIDE'),
+    )
 
     def __init__(self) -> None:
         self.using_modules = []
@@ -199,6 +207,20 @@ class ArtemisParser(Parser):
     @_('expression LT expression') # type: ignore[name-defined]
     def expression(self, p) -> tuple:
         return ('binop', '<', p.expression0, p.expression1)
+
+    # ----- LOGICAL OPS -----
+
+    @_('expression OR expression')   # type: ignore[name-defined]
+    def expression(self, p) -> tuple:
+        return ('binop', 'or', p.expression0, p.expression1)
+
+    @_('expression AND expression')   # type: ignore[name-defined]
+    def expression(self, p) -> tuple:
+        return ('binop', 'and', p.expression0, p.expression1)
+
+    @_('NOT expression')   # type: ignore[name-defined]
+    def expression(self, p) -> tuple:
+        return ('unop', 'not', p.expression)
 
     # ----- TYPES -----
 

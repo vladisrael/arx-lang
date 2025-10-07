@@ -1,0 +1,18 @@
+using io
+
+int _exec() {
+    bool a = true
+    bool b = false
+
+    io.print('a and b = ')
+    io.print(a and b)
+    io.print('\na or b = ')
+    io.print(a or b)
+    io.print('\nnot a = ')
+    io.print(not a)
+    io.print('\nnot b = ')
+    io.print(not b)
+    io.print('\n(a and not b) or (b and a) = ')
+    io.print((a and not b) or (b and a))
+    return 0
+}
