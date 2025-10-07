@@ -1,0 +1,21 @@
+[meta]
+type = c_lib
+name = string_lib
+file = string_lib.c
+[functions]
+substring:str,int,int               = str_substring         > str
+repeat:str,int                      = str_repeat            > str
+join:list:str,int,str               = str_join              > str
+trim:str                            = str_trim              > str
+trim_left:str                       = str_trim_left         > str
+trim_right:str                      = str_trim_right        > str
+replace:str,str,str                 = str_replace           > str
+index_of:str,str                    = str_index_of          > int
+last_index_of:str,str               = str_last_index_of     > int
+starts_with:str,str                 = str_starts_with       > bool
+ends_with:str,str                   = str_ends_with         > bool
+to_lower:str                        = str_to_lower          > str
+to_upper:str                        = str_to_upper          > str
+is_numeric:str                      = str_is_numeric        > bool
+is_alpha:str                        = str_is_alpha          > bool
+is_space:str                        = str_is_space          > bool

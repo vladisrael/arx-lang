@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <string.h>
 
-// Internal implementations
 void io_print_int(int x) {
     printf("%d", x);
 }
@@ -21,20 +20,17 @@ void io_print_bool(bool b) {
     printf(b ? "true" : "false");
 }
 
-// Read a line from stdin (simple version)
 char* io_input_str(const char* prompt) {
     static char buffer[256];
     static char decoded[256];
 
-    // Print prompt if not empty
     if (prompt && strlen(prompt) > 0) {
         fputs(prompt, stdout);
         fflush(stdout);
     }
 
     if (fgets(buffer, sizeof(buffer), stdin)) {
-        buffer[strcspn(buffer, "\n")] = 0; // remove trailing newline
-        // Decode escape sequences manually
+        buffer[strcspn(buffer, "\n")] = 0;
         char* src = buffer;
         char* dst = decoded;
 
@@ -65,7 +61,7 @@ char* io_input_str(const char* prompt) {
 int io_input_int(const char* prompt) {
     char* str = io_input_str(prompt);
     if (str == NULL || str[0] == '\0') {
-        return 0;  // empty input fallback
+        return 0;
     }
     return atoi(str);
 }

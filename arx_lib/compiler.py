@@ -65,6 +65,14 @@ class ArtemisCompiler:
         self.extern_functions: dict[str, dict] = {}
         self.extern_modules: dict[str, ir.Module] = {}
         self.extern_modules_namespace: dict[str, dict[str, str]] = {}
+        self.list_struct_type : ir.IdentifiedStructType = ir.global_context.get_identified_type('List')
+        self.list_struct_type.set_body(
+            TypeEnum.int8.as_pointer(),
+            TypeEnum.int32,
+            TypeEnum.int32,
+            TypeEnum.int64,
+            TypeEnum.boolean
+        )
 
     def get_abi_size_from_ir_type(self, ir_type: ir.Type) -> int:
         if isinstance(ir_type, ir.IntType):

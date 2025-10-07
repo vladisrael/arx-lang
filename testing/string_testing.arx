@@ -1,0 +1,16 @@
+using io
+using string_lib
+
+int _exec() {
+    string x = io.input('> ')
+    string y = string_lib.to_lower(x)
+    string z = string_lib.to_upper(x)
+    int i = string_lib.index_of(x, 'a')
+    io.print('Original  ' + x + '\n')
+    io.print('Lowercase ' + y + '\n')
+    io.print('Uppercase ' + z + '\n')
+    io.print('Index of (a) is (')
+    io.print(i)
+    io.print(')\n')
+    return 0
+}
