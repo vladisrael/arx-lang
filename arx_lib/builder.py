@@ -1,8 +1,8 @@
-from arx_lib.lexer import ArtemisLexer
-from arx_lib.parser import ArtemisParser
-from arx_lib.compiler import ArtemisCompiler
-from arx_lib.data_classes import ArtemisData
-from arx_lib.helpers import debug_print
+from .lexer import ArtemisLexer
+from .parser import ArtemisParser
+from .compiler import ArtemisCompiler
+from .data_classes import ArtemisData
+from .helpers import debug_print
 
 import os, sys, subprocess, shutil, platform
 from typing import Optional

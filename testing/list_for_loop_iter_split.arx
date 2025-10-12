@@ -1,0 +1,12 @@
+using io
+using iter
+
+int _exec() {
+    string a = io.input('> ')
+    list:string x = iter.string_split(a, ',')
+    for (string i in x) {
+        io.print(i)
+        io.print('\n')
+    }
+    return 0
+}
