@@ -4,11 +4,11 @@
 
 <div align="center">
 
-# ARX Programming Language
+# Artemis (ARX) Programming Language
 
 **A modern, efficient programming language with LLVM backend**
 
-[![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.7+-blue.svg)](https://python.org)
 [![Build Status](https://img.shields.io/badge/build-passing-green.svg)](#)
 [![Documentation](https://img.shields.io/badge/docs-online-green.svg)](https://vladimir-sama.github.io/arx-lang/)
@@ -36,11 +36,11 @@
 git clone https://github.com/vladimir-sama/arx-lang.git
 cd arx-lang
 
-# Install dependencies
-pip install -r requirements.txt
+# Install
+python arx_install.py -i
 
 # Run your first ARX program
-python arx.py testing/hello_world.arx
+python arx.py build testing/hello_world.arx
 ```
 
 ### Hello World
@@ -67,7 +67,7 @@ int fib(int n) {
 }
 
 int _exec() {
-    int result = fib(io.input_integer('Enter number: '))
+    int result = fib(io.input_integer('Enter number > '))
     io.print(result)
     return 0
 }
@@ -77,7 +77,7 @@ int _exec() {
 
 - **Python 3.7+**
 - **GCC 7.0+** or **Clang 10.0+**
-- **LLVM Tools** (optional, for advanced features)
+- **LLVM Tools**
   - `llc` - LLVM static compiler
   - `opt` - LLVM optimizer
 
@@ -120,7 +120,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ## 📄 License
 
-This project is licensed under the GPL-3.0 License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GPLv3 License - see the [LICENSE](LICENSE) file for details.
 
 ## 🔗 Links
 
