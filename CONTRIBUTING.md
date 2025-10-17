@@ -1,4 +1,4 @@
-# Contributing to ARX Language
+# Contributing to Artemis Language
 
 Thank you for your interest in contributing to ARX! We welcome contributions from developers of all skill levels.
 
@@ -15,7 +15,7 @@ Thank you for your interest in contributing to ARX! We welcome contributions fro
 
 ## Getting Started
 
-ARX is a programming language with its own compiler and standard library. Before contributing, please:
+Artemis (ARX) is a programming language with its own compiler and standard library. Before contributing, please:
 
 1. Read our [documentation](https://vladimir-sama.github.io/arx-lang/)
 2. Try running some examples from the `testing/` directory
@@ -27,7 +27,7 @@ ARX is a programming language with its own compiler and standard library. Before
 
 - **Python 3.7 or higher**
 - **C Compiler**: GCC 7.0+ or Clang 10.0+
-- **LLVM Tools** (optional but recommended):
+- **LLVM Tools**:
   - `llc` (LLVM static compiler) for IR compilation
   - `opt` (LLVM optimizer) for code optimization
 - **Git** for version control
@@ -60,7 +60,7 @@ brew install gcc
 - Install [MinGW-w64](https://www.mingw-w64.org/) or [TDM-GCC](https://jmeubank.github.io/tdm-gcc/)
 - Or use [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
 
-#### Installing LLVM (Recommended)
+#### Installing LLVM
 
 **On Ubuntu/Debian:**
 ```bash
@@ -125,14 +125,10 @@ python --version
 5. (Optional) Test LLVM integration:
    ```bash
    # Test if ARX can generate LLVM IR and compile with LLC
-   python arx.py --emit-llvm testing/fibonacci.arx
-   # This should generate fibonacci.ll (LLVM IR)
+   python arx.py build testing/fibonacci.arx
    
-   # Compile LLVM IR to object file
-   llc fibonacci.ll -o fibonacci.o
-   
-   # Link with C runtime (if applicable)
-   gcc fibonacci.o -o fibonacci
+   # Run compiled executable under out
+   ./out/fibonacci
    ```
 
 ## How to Contribute
@@ -167,23 +163,14 @@ python --version
 
 ### Python Code (Compiler)
 
-- Follow PEP 8 style guidelines
+- Follow repository style guidelines
 - Use meaningful variable and function names
-- Add docstrings to all public functions and classes
-- Keep functions focused and small
-- Use type hints where appropriate
+- Keep functions focused and reusable
+- Use type hints where there can be
 
 Example:
 ```python
 def parse_expression(self, tokens: List[Token]) -> ExpressionNode:
-    """Parse a mathematical or logical expression from tokens.
-    
-    Args:
-        tokens: List of lexical tokens to parse
-        
-    Returns:
-        ExpressionNode representing the parsed expression
-    """
     # Implementation here
 ```
 
@@ -197,13 +184,7 @@ def parse_expression(self, tokens: List[Token]) -> ExpressionNode:
 
 Example:
 ```c
-/**
- * Concatenate two strings and return the result
- * @param str1 First string
- * @param str2 Second string
- * @return Newly allocated concatenated string
- */
-char* string_concat(const char* str1, const char* str2) {
+char* string_concat(const char* a, const char* b) {
     // Implementation here
 }
 ```
@@ -222,28 +203,8 @@ char* string_concat(const char* str1, const char* str2) {
 Test your changes using the example programs:
 
 ```bash
-# Run all tests
-python test_runner.py
-
-# Run specific test
-python arx.py testing/fibonacci.arx
-
-# Test compiler components
-python -m unittest arx_lib.test_lexer
-python -m unittest arx_lib.test_parser
-
-# Test LLVM IR generation (if LLVM is available)
-python arx.py --emit-llvm testing/fibonacci.arx
-llc fibonacci.ll -o fibonacci.o
-gcc fibonacci.o -o fibonacci && ./fibonacci
-
-# Test different optimization levels
-python arx.py --optimize -O2 testing/fibonacci.arx
-python arx.py --emit-llvm --optimize -O3 testing/fibonacci.arx
-
-# Cross-compilation testing (if multiple targets available)
-python arx.py --target x86_64 testing/hello_world.arx
-python arx.py --target arm64 testing/hello_world.arx
+python arx.py build testing/fibonacci.arx
+# Or any under testing/
 ```
 
 ### Adding Tests
@@ -266,23 +227,8 @@ Ensure your changes include appropriate tests:
 When working on compiler improvements, use these debugging techniques:
 
 ```bash
-# Generate LLVM IR for inspection
-python arx.py --emit-llvm --no-optimize testing/debug_example.arx
-
-# View generated LLVM IR
-cat debug_example.ll
-
-# Use LLVM tools for analysis
-opt -analyze -basicaa -loops debug_example.ll
-llvm-dis debug_example.bc  # if working with bitcode
-
-# Debug with GCC
-python arx.py --emit-c testing/debug_example.arx
-gcc -g -O0 debug_example.c -o debug_example
-gdb ./debug_example
-
-# Memory analysis with Valgrind (Linux/macOS)
-valgrind --leak-check=full ./debug_example
+python arx.py build testing/debug_example.arx --debug
+# --debug argument enables debug prints
 ```
 
 ## Submitting Changes
@@ -301,11 +247,8 @@ valgrind --leak-check=full ./debug_example
 
 3. **Test Your Changes**:
    ```bash
-   # Run existing tests
-   python test_runner.py
-   
    # Test your specific changes
-   python arx.py your_test_file.arx
+   python arx.py build your_test_file.arx
    ```
 
 4. **Commit Your Changes**:
@@ -365,11 +308,6 @@ When contributing to the LLVM backend:
    - Implement ARX-specific optimizations when beneficial
    - Profile performance impact of optimizations
 
-3. **Target Support**:
-   - Test on multiple architectures (x86_64, ARM64, etc.)
-   - Handle target-specific features appropriately
-   - Maintain cross-compilation capabilities
-
 ### Working with GCC Backend
 
 When contributing to the GCC integration:
@@ -384,26 +322,6 @@ When contributing to the GCC integration:
    - Ensure compatibility with the C runtime library
    - Handle memory management correctly
    - Implement proper error handling
-
-### Backend Testing Best Practices
-
-```bash
-# Test both backends
-python arx.py --backend llvm testing/example.arx
-python arx.py --backend gcc testing/example.arx
-
-# Compare outputs
-python arx.py --backend llvm -o example_llvm testing/example.arx
-python arx.py --backend gcc -o example_gcc testing/example.arx
-diff <(./example_llvm) <(./example_gcc)
-
-# Performance comparison
-time ./example_llvm
-time ./example_gcc
-
-# Binary size comparison
-ls -la example_llvm example_gcc
-```
 
 ## Issue Reporting
 
@@ -486,6 +404,6 @@ Contributors will be recognized in:
 
 ## 📄 License
 
-By contributing to ARX, you agree that your contributions will be licensed under the GPL-3.0 License. This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+By contributing to ARX, you agree that your contributions will be licensed under the GPLv3 License. This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
 Thank you for contributing to ARX! 🚀
