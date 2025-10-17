@@ -484,4 +484,8 @@ Contributors will be recognized in:
 - [Language Examples](./testing/)
 - [Issue Tracker](https://github.com/dvchinx/arx-lang/issues)
 
+## 📄 License
+
+By contributing to ARX, you agree that your contributions will be licensed under the GPL-3.0 License. This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
 Thank you for contributing to ARX! 🚀

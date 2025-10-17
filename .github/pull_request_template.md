@@ -96,6 +96,9 @@ python arx.py testing/example.arx
 - [ ] Error handling is appropriate
 - [ ] No debugging code left in
 
+**License:**
+- [ ] I understand that this project is licensed under GPL-3.0
+
 ## Additional Notes
 Any additional information, concerns, or questions about this PR.
 

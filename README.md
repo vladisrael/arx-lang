@@ -8,7 +8,7 @@
 
 **A modern, efficient programming language with LLVM backend**
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.7+-blue.svg)](https://python.org)
 [![Build Status](https://img.shields.io/badge/build-passing-green.svg)](#)
 [![Documentation](https://img.shields.io/badge/docs-online-green.svg)](https://vladimir-sama.github.io/arx-lang/)
@@ -33,7 +33,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/dvchinx/arx-lang.git
+git clone https://github.com/vladimir-sama/arx-lang.git
 cd arx-lang
 
 # Install dependencies
@@ -120,7 +120,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GPL-3.0 License - see the [LICENSE](LICENSE) file for details.
 
 ## 🔗 Links
 
