@@ -11,10 +11,10 @@
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.7+-blue.svg)](https://python.org)
 [![Build Status](https://img.shields.io/badge/build-passing-green.svg)](#)
-[![Documentation](https://img.shields.io/badge/docs-online-green.svg)](https://vladimir-sama.github.io/arx-lang/)
-[![VS Code Extension](https://img.shields.io/badge/vscode-extension-blue.svg)](https://github.com/vladimir-sama/arx-vscode/)
+[![Documentation](https://img.shields.io/badge/docs-online-green.svg)](https://vladisrael.github.io/arx-lang/)
+[![VS Code Extension](https://img.shields.io/badge/vscode-extension-blue.svg)](https://github.com/vladisrael/arx-vscode/)
 
-[📖 Documentation](https://vladimir-sama.github.io/arx-lang/) • [🧩 VS Code Extension](https://github.com/vladimir-sama/arx-vscode/) • [🚀 Getting Started](#quick-start) • [🤝 Contributing](CONTRIBUTING.md)
+[📖 Documentation](https://vladisrael.github.io/arx-lang/) • [🧩 VS Code Extension](https://github.com/vladisrael/arx-vscode/) • [🚀 Getting Started](#quick-start) • [🤝 Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -33,7 +33,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/vladimir-sama/arx-lang.git
+git clone https://github.com/vladisrael/arx-lang.git
 cd arx-lang
 
 # Install
@@ -124,10 +124,10 @@ This project is licensed under the GPLv3 License - see the [LICENSE](LICENSE) fi
 
 ## 🔗 Links
 
-- [📖 **Documentation**](https://vladimir-sama.github.io/arx-lang/) - Complete language reference
-- [🧩 **VS Code Extension**](https://github.com/vladimir-sama/arx-vscode/) - IDE support
+- [📖 **Documentation**](https://vladisrael.github.io/arx-lang/) - Complete language reference
+- [🧩 **VS Code Extension**](https://github.com/vladisrael/arx-vscode/) - IDE support
 - [📁 **Examples**](testing/) - Sample ARX programs
-- [🐛 **Issues**](https://github.com/vladimir-sama/arx-lang/issues) - Bug reports and feature requests
+- [🐛 **Issues**](https://github.com/vladisrael/arx-lang/issues) - Bug reports and feature requests
 
 ---
 
